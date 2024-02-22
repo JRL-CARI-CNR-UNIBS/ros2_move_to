@@ -1,0 +1,10 @@
+#Goal
+string group_name
+string[] trj_names
+bool simulation
+---
+#Result
+bool ok
+---
+#Feedback
+string trj_in_execution
