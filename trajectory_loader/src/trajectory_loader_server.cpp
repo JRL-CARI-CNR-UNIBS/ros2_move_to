@@ -6,120 +6,109 @@
 #include "std_srvs/srv/trigger.hpp"
 #include "moveit_msgs/action/execute_trajectory.hpp"
 #include "trajectory_loader/action/trajectory_loader_action.hpp"
+#include "moveit/move_group_interface/move_group_interface.h"
 
 
 class TrajectoryLoaderServer : public rclcpp::Node
 {
 public:
 
-  explicit TrajectoryLoaderServer(const std::string& ns, const rclcpp::NodeOptions & node_options = rclcpp::NodeOptions())
+  explicit TrajectoryLoaderServer(const rclcpp::NodeOptions & node_options = rclcpp::NodeOptions())
     : Node("trajectory_loader_action_client", node_options)
   {
-//    this->client_ptr_ = rclcpp_action::create_client<control_msgs::action::FollowJointTrajectory>(
-//          this->get_node_base_interface(),
-//          this->get_node_graph_interface(),
-//          this->get_node_logging_interface(),
-//          this->get_node_waitables_interface(),
-//          ns+"/follow_joint_trajectory");
-
-//    this->server_ptr_ = rclcpp_action::create_server<TrajectoryLoaderAction>(
-//          this->get_node_base_interface(),
-//          this->get_node_clock_interface(),
-//          this->get_node_logging_interface(),
-//          this->get_node_waitables_interface(),
-//          "fibonacci",
-//          std::bind(&TrajectoryLoaderServer::handle_goal, this, _1, _2),
-//          std::bind(&TrajectoryLoaderServer::handle_cancel, this, _1),
-//          std::bind(&TrajectoryLoaderServer::handle_accepted, this, _1));
+    this->server_ptr_ = rclcpp_action::create_server<trajectory_loader::action::TrajectoryLoaderAction>(
+          this,"/trajectory_loader",
+          std::bind(&TrajectoryLoaderServer::handle_goal, this, std::placeholders::_1, std::placeholders::_2),
+          std::bind(&TrajectoryLoaderServer::handle_cancel, this, std::placeholders::_1),
+          std::bind(&TrajectoryLoaderServer::handle_accepted, this, std::placeholders::_1));
   }
 
-  void load_trajectory(const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
-                       std::shared_ptr<std_srvs::srv::Trigger::Response> response)
+  void load_trajectory()
   {
-    //    //Read trj from param and sent to action client
-    //    trajectory_msgs::msg::JointTrajectory trj;
+    this->client_ptr_ = rclcpp_action::create_client<moveit_msgs::action::ExecuteTrajectory>(this,"/execute_trajectory");
 
-    //    this->trajectory_ = trj;
-    //    this->client_ptr_->send_goal()
-    //  }
+    trajectory_loader::action::TrajectoryLoaderAction::Result::SharedPtr result;
+    result->ok = false;
 
-    //  void send_goal()
-    //  {
-    //    if (!this->client_ptr_)
-    //      RCLCPP_ERROR(this->get_logger(), "Action client not initialized");
+    const auto goal = goal_handle_->get_goal();
+    bool simulate=goal->simulation;
+    std::string group_name=goal->group_name;
+    std::vector<std::string> executed_trjs=goal->trj_names;
 
-    //    if(!this->client_ptr_->wait_for_action_server(std::chrono::seconds(10)))
-    //    {
-    //      RCLCPP_ERROR(this->get_logger(), "Action server not available after waiting");
-    //      return;
-    //    }
+    if(not simulate)
+    {
+      if (not client_ptr_->wait_for_action_server(std::chrono::duration<double>(10.0)))
+      {
+        RCLCPP_ERROR(this->get_logger(), "No /execute_trajectory action server found!");
+        goal_handle_->abort(result);
+        return;
+      }
+    }
 
-    //    control_msgs::action::FollowJointTrajectory::Goal goal_msg;
-    //    goal_msg.trajectory = trajectory_;
+    moveit::planning_interface::MoveGroupInterface move_group(this->shared_from_this(),group_name);
+    moveit::planning_interface::MoveGroupInterface::Plan my_plan;
+    bool success;
 
-    //    RCLCPP_INFO(this->get_logger(), "Sending goal");
-
-    //    auto send_goal_options = rclcpp_action::Client<FollowJointTrajectory>::SendGoalOptions();
-    //    send_goal_options.goal_response_callback =
-    //      std::bind(&TrajectoryLoaderServer::goal_response_callback, this, _1);
-    //    send_goal_options.feedback_callback =
-    //      std::bind(&TrajectoryLoaderServer::feedback_callback, this, _1, _2);
-    //    send_goal_options.result_callback =
-    //      std::bind(&TrajectoryLoaderServer::result_callback, this, _1);
-
-    //    auto goal_handle_future = this->client_ptr_->async_send_goal(goal_msg, send_goal_options);
+    if (executed_trjs.size()==0)
+    {
+      rclcpp::Parameter trjs;
+      if(not this->get_parameter("list_of_trajectories", trjs))
+      {
+        RCLCPP_ERROR(this->get_logger(), "No list of trajectories specified!");
+        goal_handle_->abort(result);
+        return;
+      }
+      else
+        executed_trjs = trjs.as_string_array();
+    }
   }
 
 private:
   trajectory_msgs::msg::JointTrajectory trajectory_;
-//  rclcpp_action::Server<>::SharedPtr server_ptr_;
   rclcpp_action::Client<moveit_msgs::action::ExecuteTrajectory>::SharedPtr client_ptr_;
+  rclcpp_action::Server<trajectory_loader::action::TrajectoryLoaderAction>::SharedPtr server_ptr_;
+  std::shared_ptr<rclcpp_action::ServerGoalHandle<trajectory_loader::action::TrajectoryLoaderAction>> goal_handle_;
 
-//  void goal_response_callback(rclcpp_action::ClientGoalHandle
-//                              <control_msgs::action::FollowJointTrajectory>::SharedPtr goal_handle)
-//  {
-//    if (!goal_handle)
-//      RCLCPP_ERROR(this->get_logger(), "Goal was rejected by server");
-//    else
-//      RCLCPP_INFO(this->get_logger(), "Goal accepted by server, waiting for result");
-//  }
+  rclcpp_action::GoalResponse handle_goal(
+      const rclcpp_action::GoalUUID & uuid,
+      std::shared_ptr<const trajectory_loader::action::TrajectoryLoaderAction::Goal> goal)
+  {
+    RCLCPP_INFO_STREAM(this->get_logger(), "Received goal request for group "<< goal->group_name);
 
-//  void feedback_callback(
-//      rclcpp_action::ClientGoalHandle<control_msgs::action::FollowJointTrajectory>::SharedPtr,
-//      const std::shared_ptr<const control_msgs::action::FollowJointTrajectory::Feedback> feedback)
-//  {
-//    RCLCPP_INFO(this->get_logger(), "feedback->desired.positions :");
-//    for (auto & x : feedback->desired.positions)
-//      RCLCPP_INFO_STREAM(this->get_logger(), x<<"/t");
+    if(this->goal_handle_ != nullptr)
+    {
+      if(this->goal_handle_->is_active()    ||
+         this->goal_handle_->is_canceling() ||
+         this->goal_handle_->is_executing())
+      {
+        RCLCPP_INFO_STREAM(this->get_logger(), "Goal rejected! Current goal not in a terminal state");
+        return rclcpp_action::GoalResponse::REJECT;
+      }
+    }
 
-//    RCLCPP_INFO(this->get_logger(), "feedback->desired.velocities :");
-//    for (auto & x : feedback->desired.velocities)
-//      RCLCPP_INFO_STREAM(this->get_logger(), x<<"/t");
-//  }
+    (void)uuid;
+    return rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE;
+  }
 
-//  void result_callback(const rclcpp_action::ClientGoalHandle
-//                       <control_msgs::action::FollowJointTrajectory>::WrappedResult & result)
-//  {
-//    switch (result.code) {
-//    case rclcpp_action::ResultCode::SUCCEEDED:
-//      break;
-//    case rclcpp_action::ResultCode::ABORTED:
-//      RCLCPP_ERROR(this->get_logger(), "Goal was aborted");
-//      return;
-//    case rclcpp_action::ResultCode::CANCELED:
-//      RCLCPP_ERROR(this->get_logger(), "Goal was canceled");
-//      return;
-//    default:
-//      RCLCPP_ERROR(this->get_logger(), "Unknown result code");
-//      return;
-//    }
+  rclcpp_action::CancelResponse handle_cancel(
+      const std::shared_ptr<rclcpp_action::ServerGoalHandle
+      <trajectory_loader::action::TrajectoryLoaderAction>> goal_handle)
+  {
+    RCLCPP_INFO(this->get_logger(), "Received request to cancel goal");
+    (void)goal_handle;
+    return rclcpp_action::CancelResponse::ACCEPT;
+  }
 
-//    RCLCPP_INFO(this->get_logger(), "Action succeeded!");
-//  }
+  void handle_accepted(const std::shared_ptr<rclcpp_action::ServerGoalHandle
+                       <trajectory_loader::action::TrajectoryLoaderAction>> goal_handle)
+  {
+    goal_handle_ = goal_handle;
+    std::thread(std::bind(&TrajectoryLoaderServer::load_trajectory, this)).detach();
+  }
 };
 
 int main(int argc, char ** argv)
 {
   rclcpp::init(argc, argv);
-//  auto action_client = std::make_shared<TrajectoryLoaderServer>();
+  //  auto action_client = std::make_shared<TrajectoryLoaderServer>();
 }

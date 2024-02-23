@@ -21,6 +21,7 @@ find_package(std_srvs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(moveit_msgs REQUIRED)
 find_package(action_msgs REQUIRED)
+find_package(moveit_ros_planning_interface REQUIRED)
 
 
 rosidl_generate_interfaces(${PROJECT_NAME}
@@ -52,6 +53,7 @@ ament_target_dependencies(trajectory_loader_server
   std_srvs
   moveit_msgs
   sensor_msgs
+  moveit_ros_planning_interface
 )
 rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
 target_link_libraries(trajectory_loader_server "${cpp_typesupport_target}")
