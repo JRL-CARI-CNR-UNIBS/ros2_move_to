@@ -1,10 +1,14 @@
 #Goal
 string group_name
 string[] trj_names
+int32 repetitions
+bool rescale
 bool simulation
 ---
 #Result
 bool ok
+string error
 ---
 #Feedback
 string trj_in_execution
+string current_repetition

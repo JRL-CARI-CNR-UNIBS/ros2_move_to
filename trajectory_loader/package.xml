@@ -21,6 +21,7 @@
   <depend>sensor_msgs</depend>
   <depend>moveit_msgs</depend>
   <depend>moveit_ros_planning_interface</depend>
+  <depend>cnr_param</depend>
 
   <member_of_group>rosidl_interface_packages</member_of_group>
 
