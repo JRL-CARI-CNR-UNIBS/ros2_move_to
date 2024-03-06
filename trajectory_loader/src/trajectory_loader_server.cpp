@@ -38,6 +38,8 @@ private:
 
   void load_trajectory()
   {
+    std::string node_ns = this->get_namespace();
+
     this->client_ptr_ = rclcpp_action::create_client<moveit_msgs::action::ExecuteTrajectory>(this,"/execute_trajectory");
 
     trajectory_loader::action::TrajectoryLoaderAction::Result::SharedPtr result;
@@ -67,10 +69,24 @@ private:
     moveit::planning_interface::MoveGroupInterface::Plan my_plan;
     bool success;
 
+//    if(executed_trjs.size()==0)
+//    {
+//      rclcpp::Parameter trjs;
+//      if(not this->get_parameter("list_of_trajectories", trjs))
+//      {
+//        RCLCPP_ERROR(this->get_logger(), "No list of trajectories specified!");
+//        result->error = "No list of trajectories specified!";
+//        goal_handle_->abort(result);
+//        return;
+//      }
+//      else
+//        executed_trjs = trjs.as_string_array();
+//    }
+
     if(executed_trjs.size()==0)
     {
-      rclcpp::Parameter trjs;
-      if(not this->get_parameter("list_of_trajectories", trjs))
+      std::string w;
+      if(not cnr::param::get(node_ns+"/list_of_trajectories",executed_trjs,w))
       {
         RCLCPP_ERROR(this->get_logger(), "No list of trajectories specified!");
         result->error = "No list of trajectories specified!";
@@ -78,7 +94,7 @@ private:
         return;
       }
       else
-        executed_trjs = trjs.as_string_array();
+        RCLCPP_INFO(this->get_logger(), "trajectories read from param!");
     }
 
     move_group.startStateMonitor();
@@ -104,7 +120,6 @@ private:
         moveit_msgs::msg::RobotTrajectory approach_trj;
 
         std::string what;
-        std::string node_ns = this->get_namespace();
         if (not getTrajectoryFromParam(node_ns+"/"+current_trj_name, trj_from_param, what))
         {
           RCLCPP_ERROR(this->get_logger(),"%s not found", current_trj_name.c_str());
