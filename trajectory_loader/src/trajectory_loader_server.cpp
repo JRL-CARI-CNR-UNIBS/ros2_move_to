@@ -11,6 +11,7 @@
 #include "cnr_param/cnr_param.h"
 #include "builtin_interfaces/msg/duration.hpp"
 #include "std_srvs/srv/empty.hpp"
+#include "std_msgs/msg/string.hpp"
 #include "moveit_msgs/msg/display_trajectory.hpp"
 
 class TrajectoryLoaderServer : public rclcpp::Node
@@ -26,15 +27,25 @@ public:
           std::bind(&TrajectoryLoaderServer::handle_cancel, this, std::placeholders::_1),
           std::bind(&TrajectoryLoaderServer::handle_accepted, this, std::placeholders::_1));
 
-    this->create_publisher<moveit_msgs::msg::DisplayTrajectory>("/simulated_trajectory",1);
+    this->display_trj_pub_ = this->create_publisher<moveit_msgs::msg::DisplayTrajectory>("/simulated_trajectory",1);
+    this->robot_description_sub_ = this->create_subscription<std_msgs::msg::String>
+        ("/robot_description", 10, std::bind(&TrajectoryLoaderServer::robot_description_callback, this, std::placeholders::_1));
   }
 
 private:
+  std::string robot_description_;
   trajectory_msgs::msg::JointTrajectory trajectory_;
+  rclcpp::Subscription<std_msgs::msg::String>::SharedPtr robot_description_sub_;
   rclcpp::Publisher<moveit_msgs::msg::DisplayTrajectory>::SharedPtr display_trj_pub_;
   rclcpp_action::Client<moveit_msgs::action::ExecuteTrajectory>::SharedPtr client_ptr_;
   rclcpp_action::Server<trajectory_loader::action::TrajectoryLoaderAction>::SharedPtr server_ptr_;
   std::shared_ptr<rclcpp_action::ServerGoalHandle<trajectory_loader::action::TrajectoryLoaderAction>> goal_handle_;
+
+  void robot_description_callback(const std_msgs::msg::String & msg)
+  {
+    if(this->robot_description_.empty())
+      this->robot_description_ = msg.data;
+  }
 
   void load_trajectory()
   {
@@ -42,11 +53,10 @@ private:
 
     this->client_ptr_ = rclcpp_action::create_client<moveit_msgs::action::ExecuteTrajectory>(this,"/execute_trajectory");
 
-    trajectory_loader::action::TrajectoryLoaderAction::Result::SharedPtr result;
-    trajectory_loader::action::TrajectoryLoaderAction::Feedback::SharedPtr feedback;
+    auto result = std::make_shared<trajectory_loader::action::TrajectoryLoaderAction::Result>();
+    auto feedback = std::make_shared<trajectory_loader::action::TrajectoryLoaderAction::Feedback>();
 
     result->ok = false;
-
     const auto goal = goal_handle_->get_goal();
     bool simulate = goal->simulation;
     std::string group_name = goal->group_name;
@@ -65,23 +75,35 @@ private:
       }
     }
 
-    moveit::planning_interface::MoveGroupInterface move_group(this->shared_from_this(),group_name);
+    RCLCPP_WARN(this->get_logger(),"QUA");
+
+    if(this->robot_description_.empty())
+    {
+      RCLCPP_WARN(this->get_logger(),"waiting for robot_description");
+      this->get_clock()->sleep_for(std::chrono_literals::operator""s(1));
+    }
+
+    moveit::planning_interface::MoveGroupInterface::Options opt(group_name,this->robot_description_);
+    moveit::planning_interface::MoveGroupInterface move_group(this->shared_from_this(),opt);
+
+    RCLCPP_WARN(this->get_logger(),"QUA1");
+
     moveit::planning_interface::MoveGroupInterface::Plan my_plan;
     bool success;
 
-//    if(executed_trjs.size()==0)
-//    {
-//      rclcpp::Parameter trjs;
-//      if(not this->get_parameter("list_of_trajectories", trjs))
-//      {
-//        RCLCPP_ERROR(this->get_logger(), "No list of trajectories specified!");
-//        result->error = "No list of trajectories specified!";
-//        goal_handle_->abort(result);
-//        return;
-//      }
-//      else
-//        executed_trjs = trjs.as_string_array();
-//    }
+    //    if(executed_trjs.size()==0)
+    //    {
+    //      rclcpp::Parameter trjs;
+    //      if(not this->get_parameter("list_of_trajectories", trjs))
+    //      {
+    //        RCLCPP_ERROR(this->get_logger(), "No list of trajectories specified!");
+    //        result->error = "No list of trajectories specified!";
+    //        goal_handle_->abort(result);
+    //        return;
+    //      }
+    //      else
+    //        executed_trjs = trjs.as_string_array();
+    //    }
 
     if(executed_trjs.size()==0)
     {

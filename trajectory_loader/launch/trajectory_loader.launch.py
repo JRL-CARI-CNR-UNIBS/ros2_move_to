@@ -21,7 +21,7 @@ def generate_launch_description():
           ])
         ],
         shell=False
-      )
+      ),
     
     Node(
       package="trajectory_loader",

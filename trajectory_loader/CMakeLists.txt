@@ -46,6 +46,32 @@ ament_target_dependencies(trajectory_loader_server
 rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
 target_link_libraries(trajectory_loader_server "${cpp_typesupport_target}")
 
+add_executable(trajectory_loader_test src/test.cpp)
+ament_target_dependencies(trajectory_loader_test
+    rclcpp
+    rclcpp_components
+    rosidl_default_generators
+    rclcpp_action
+    std_msgs
+    trajectory_msgs
+    control_msgs
+    std_srvs
+    moveit_msgs
+    sensor_msgs
+    moveit_ros_planning_interface
+    cnr_param
+)
+rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
+target_link_libraries(trajectory_loader_test "${cpp_typesupport_target}")
+
+install(TARGETS
+  trajectory_loader_server
+  trajectory_loader_test
+  DESTINATION lib/${PROJECT_NAME})
+
+install(DIRECTORY launch config
+  DESTINATION share/${PROJECT_NAME} )
+
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
   # the following line skips the linter which checks for copyrights
