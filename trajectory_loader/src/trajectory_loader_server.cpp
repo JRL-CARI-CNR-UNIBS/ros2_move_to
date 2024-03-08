@@ -13,13 +13,15 @@
 #include "std_srvs/srv/empty.hpp"
 #include "std_msgs/msg/string.hpp"
 #include "moveit_msgs/msg/display_trajectory.hpp"
+#include <rclcpp/parameter_client.hpp>
+
+using namespace std::chrono_literals;
 
 class TrajectoryLoaderServer : public rclcpp::Node
 {
 public:
-
-  explicit TrajectoryLoaderServer(const rclcpp::NodeOptions & node_options = rclcpp::NodeOptions())
-    : Node("trajectory_loader_action_client", node_options)
+  explicit TrajectoryLoaderServer(const rclcpp::NodeOptions & node_options = rclcpp::NodeOptions().automatically_declare_parameters_from_overrides(true))
+    : Node("trajectory_loader_server", node_options)
   {
     this->server_ptr_ = rclcpp_action::create_server<trajectory_loader::action::TrajectoryLoaderAction>(
           this,"/trajectory_loader",
@@ -28,24 +30,32 @@ public:
           std::bind(&TrajectoryLoaderServer::handle_accepted, this, std::placeholders::_1));
 
     this->display_trj_pub_ = this->create_publisher<moveit_msgs::msg::DisplayTrajectory>("/simulated_trajectory",1);
-    this->robot_description_sub_ = this->create_subscription<std_msgs::msg::String>
-        ("/robot_description", 10, std::bind(&TrajectoryLoaderServer::robot_description_callback, this, std::placeholders::_1));
+
+
+    // Get robot_description
+    rclcpp::SyncParametersClient::SharedPtr parameters_client = std::make_shared<rclcpp::SyncParametersClient>(this, std::string("/move_group"));
+    while (!parameters_client->wait_for_service(1s))
+    {
+      if (!rclcpp::ok())
+      {
+        RCLCPP_ERROR(this->get_logger(), "Interrupted while waiting for the service. Exiting.");
+        rclcpp::shutdown();
+      }
+      RCLCPP_INFO(this->get_logger(), "service not available, waiting again...");
+    }
+    if(not parameters_client->has_parameter("robot_description"))
+      RCLCPP_ERROR(this->get_logger(), "Cannot find robot_description parameter");
+
+    robot_description_ = parameters_client->get_parameter<std::string>("robot_description");
   }
 
 private:
   std::string robot_description_;
   trajectory_msgs::msg::JointTrajectory trajectory_;
-  rclcpp::Subscription<std_msgs::msg::String>::SharedPtr robot_description_sub_;
   rclcpp::Publisher<moveit_msgs::msg::DisplayTrajectory>::SharedPtr display_trj_pub_;
   rclcpp_action::Client<moveit_msgs::action::ExecuteTrajectory>::SharedPtr client_ptr_;
   rclcpp_action::Server<trajectory_loader::action::TrajectoryLoaderAction>::SharedPtr server_ptr_;
   std::shared_ptr<rclcpp_action::ServerGoalHandle<trajectory_loader::action::TrajectoryLoaderAction>> goal_handle_;
-
-  void robot_description_callback(const std_msgs::msg::String & msg)
-  {
-    if(this->robot_description_.empty())
-      this->robot_description_ = msg.data;
-  }
 
   void load_trajectory()
   {
@@ -79,14 +89,26 @@ private:
 
     if(this->robot_description_.empty())
     {
-      RCLCPP_WARN(this->get_logger(),"waiting for robot_description");
-      this->get_clock()->sleep_for(std::chrono_literals::operator""s(1));
+      RCLCPP_WARN(this->get_logger(),"robot_description not available");
+      result->error = "robot_description not available";
+      goal_handle_->abort(result);
+      return;
     }
-
-    moveit::planning_interface::MoveGroupInterface::Options opt(group_name,this->robot_description_);
-    moveit::planning_interface::MoveGroupInterface move_group(this->shared_from_this(),opt);
-
     RCLCPP_WARN(this->get_logger(),"QUA1");
+    RCLCPP_WARN_STREAM(this->get_logger(),this->robot_description_);
+
+
+    const rclcpp::Node::SharedPtr node = this->shared_from_this();
+    RCLCPP_ERROR_STREAM(this->get_logger(),node->get_name());
+
+
+//    moveit::planning_interface::MoveGroupInterface move_group(node,"manipulator");
+    moveit::planning_interface::MoveGroupInterface::Options opt(group_name,this->robot_description_);
+    RCLCPP_WARN(this->get_logger(),"QUA2");
+
+    moveit::planning_interface::MoveGroupInterface move_group(node,opt);
+
+    RCLCPP_WARN(this->get_logger(),"QUA3");
 
     moveit::planning_interface::MoveGroupInterface::Plan my_plan;
     bool success;
