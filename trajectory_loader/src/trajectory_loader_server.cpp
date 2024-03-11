@@ -38,27 +38,27 @@ public:
     this->display_trj_pub_ = this->create_publisher<moveit_msgs::msg::DisplayTrajectory>("/simulated_trajectory",1);
 
     // Get robot_description
-    rclcpp::SyncParametersClient::SharedPtr parameters_client = std::make_shared<rclcpp::SyncParametersClient>(this, std::string("/move_group"));
-    while (!parameters_client->wait_for_service(1s))
-    {
-      if (!rclcpp::ok())
-      {
-        RCLCPP_ERROR(this->get_logger(), "Interrupted while waiting for the service. Exiting.");
-        rclcpp::shutdown();
-      }
-      RCLCPP_INFO(this->get_logger(), "service not available, waiting again...");
-    }
-    if(not parameters_client->has_parameter("robot_description"))
-      RCLCPP_ERROR(this->get_logger(), "Cannot find robot_description parameter");
-    if(not parameters_client->has_parameter("robot_description_semantic"))
-      RCLCPP_ERROR(this->get_logger(), "Cannot find robot_description_semantic parameter");
+    // rclcpp::SyncParametersClient::SharedPtr parameters_client = std::make_shared<rclcpp::SyncParametersClient>(this, std::string("/move_group"));
+    // while (!parameters_client->wait_for_service(1s))
+    // {
+    //   if (!rclcpp::ok())
+    //   {
+    //     RCLCPP_ERROR(this->get_logger(), "Interrupted while waiting for the service. Exiting.");
+    //     rclcpp::shutdown();
+    //   }
+    //   RCLCPP_INFO(this->get_logger(), "service not available, waiting again...");
+    // }
+    // if(not parameters_client->has_parameter("robot_description"))
+    //   RCLCPP_ERROR(this->get_logger(), "Cannot find robot_description parameter");
+    // if(not parameters_client->has_parameter("robot_description_semantic"))
+    //   RCLCPP_ERROR(this->get_logger(), "Cannot find robot_description_semantic parameter");
 
     std::string param_name = "robot_description";
-    std::string robot_description = parameters_client->get_parameter<std::string>(param_name);
-    rclcpp::Parameter robot_description_param(param_name,robot_description);
+    // std::string robot_description = parameters_client->get_parameter<std::string>(param_name);
+    // rclcpp::Parameter robot_description_param(param_name,robot_description);
 
-    this->declare_parameter(param_name, rclcpp::PARAMETER_STRING);
-    this->set_parameter(robot_description_param);
+    // this->declare_parameter(param_name, rclcpp::PARAMETER_STRING);
+    // this->set_parameter(robot_description_param);
 
     if(not this->has_parameter(param_name))
       throw std::runtime_error("no robot description");
@@ -66,11 +66,11 @@ public:
       RCLCPP_WARN(this->get_logger(),"robot description loaded");
 
     param_name = "robot_description_semantic";
-    std::string robot_description_semantic = parameters_client->get_parameter<std::string>(param_name);
-    rclcpp::Parameter robot_description_semantic_param(param_name,robot_description_semantic);
+    // std::string robot_description_semantic = parameters_client->get_parameter<std::string>(param_name);
+    // rclcpp::Parameter robot_description_semantic_param(param_name,robot_description_semantic);
 
-    this->declare_parameter(param_name, rclcpp::PARAMETER_STRING);
-    this->set_parameter(robot_description_semantic_param);
+    // this->declare_parameter(param_name, rclcpp::PARAMETER_STRING);
+    // this->set_parameter(robot_description_semantic_param);
 
     if(not this->has_parameter(param_name))
       throw std::runtime_error("no robot description semantic");
@@ -381,7 +381,7 @@ private:
        || (qd.size()!=0 && !checkd(qd, np , "velocities", what))
        || (qdd.size()!=0 && !checkd(qdd, np , "accelerations", what))
        || (eff.size()!=0 && !checkd(eff, np , "effort", what) ))
-    {
+    {rclcpp::executors::SingleThreadedExecutor executor;
       return false;
     }
 
@@ -482,13 +482,10 @@ int main(int argc, char ** argv)
   rclcpp::NodeOptions node_options;
   node_options.automatically_declare_parameters_from_overrides(true);
 
-  auto node = rclcpp::Node::make_shared("trajectory_loader_node", node_options);
-
+  auto node = std::make_shared<TrajectoryLoaderServer>(node_options);
   rclcpp::executors::MultiThreadedExecutor executor;
   executor.add_node(node);
-  std::thread([&executor]() { executor.spin(); }).detach();
-
-  rclcpp::spin(std::make_shared<TrajectoryLoaderServer>(node_options));
+  executor.spin();
 
   rclcpp::shutdown();
   return 0;

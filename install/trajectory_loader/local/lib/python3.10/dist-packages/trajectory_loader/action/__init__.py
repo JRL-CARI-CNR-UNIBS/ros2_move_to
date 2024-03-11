@@ -1,0 +1,1 @@
+/home/gino/projects/kuka_cell_ws/src/ros2_move_to/build/trajectory_loader/rosidl_generator_py/trajectory_loader/action/__init__.py

@@ -1,0 +1,1 @@
+/home/gino/projects/kuka_cell_ws/src/ros2_move_to/trajectory_loader/launch/trajectory_loader.launch.py
