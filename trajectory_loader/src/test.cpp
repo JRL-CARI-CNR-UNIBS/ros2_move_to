@@ -30,6 +30,7 @@ int main(int argc, char ** argv)
   auto future = client_ptr->async_send_goal(goal);
   auto res = rclcpp::spin_until_future_complete(node,future);
   RCLCPP_INFO_STREAM(node->get_logger(),"Result: "<<res);
+  std::cin.get();
 
   rclcpp::shutdown();
   return 0;

@@ -15,13 +15,19 @@
 #include "moveit_msgs/msg/display_trajectory.hpp"
 #include <rclcpp/parameter_client.hpp>
 
+#include <moveit/move_group_interface/move_group_interface.h>
+#include <moveit/planning_scene_interface/planning_scene_interface.h>
+#include <moveit/planning_scene/planning_scene.h>
+#include <moveit/planning_scene_monitor/planning_scene_monitor.h>
+#include <moveit/robot_model_loader/robot_model_loader.h>
+
 using namespace std::chrono_literals;
 
 class TrajectoryLoaderServer : public rclcpp::Node
 {
 public:
-  explicit TrajectoryLoaderServer(const rclcpp::NodeOptions & node_options = rclcpp::NodeOptions().automatically_declare_parameters_from_overrides(true))
-    : Node("trajectory_loader_server", node_options)
+  explicit TrajectoryLoaderServer(moveit::planning_interface::MoveGroupInterface& move_group, const rclcpp::NodeOptions & node_options = rclcpp::NodeOptions().automatically_declare_parameters_from_overrides(true))
+    : Node("trajectory_loader_server", node_options), move_group_(move_group)
   {
     this->server_ptr_ = rclcpp_action::create_server<trajectory_loader::action::TrajectoryLoaderAction>(
           this,"/trajectory_loader",
@@ -50,6 +56,7 @@ public:
   }
 
 private:
+  moveit::planning_interface::MoveGroupInterface& move_group_;
   std::string robot_description_;
   trajectory_msgs::msg::JointTrajectory trajectory_;
   rclcpp::Publisher<moveit_msgs::msg::DisplayTrajectory>::SharedPtr display_trj_pub_;
@@ -69,7 +76,7 @@ private:
     result->ok = false;
     const auto goal = goal_handle_->get_goal();
     bool simulate = goal->simulation;
-    std::string group_name = goal->group_name;
+    static const std::string group_name = goal->group_name;
     std::vector<std::string> executed_trjs = goal->trj_names;
     bool rescale = goal->rescale;
     unsigned int repetitions = goal->repetitions;
@@ -102,11 +109,11 @@ private:
     RCLCPP_ERROR_STREAM(this->get_logger(),node->get_name());
 
 
-//    moveit::planning_interface::MoveGroupInterface move_group(node,"manipulator");
-    moveit::planning_interface::MoveGroupInterface::Options opt(group_name,this->robot_description_);
+//    moveit::planning_interface::MoveGroupInterface move_group(node,group_name);
+    //    moveit::planning_interface::MoveGroupInterface::Options opt(group_name,this->robot_description_);
     RCLCPP_WARN(this->get_logger(),"QUA2");
 
-    moveit::planning_interface::MoveGroupInterface move_group(node,opt);
+    //    moveit::planning_interface::MoveGroupInterface move_group(node,opt);
 
     RCLCPP_WARN(this->get_logger(),"QUA3");
 
@@ -141,8 +148,8 @@ private:
         RCLCPP_INFO(this->get_logger(), "trajectories read from param!");
     }
 
-    move_group.startStateMonitor();
-    moveit::core::RobotState trj_state = *move_group.getCurrentState();
+    move_group_.startStateMonitor();
+    moveit::core::RobotState trj_state = *move_group_.getCurrentState();
 
     for(unsigned irep = 0; irep<repetitions; irep++)
     {
@@ -187,7 +194,7 @@ private:
         else
         {
           trj_state.setJointGroupPositions(group_name, initial_position);
-          robot_trajectory::RobotTrajectory trajectory(move_group.getRobotModel(), group_name);
+          robot_trajectory::RobotTrajectory trajectory(move_group_.getRobotModel(), group_name);
           trajectory.setRobotTrajectoryMsg(trj_state, trj_from_param);
           if(rescale)
           {
@@ -206,12 +213,12 @@ private:
           return;
 
         //Go to the first configuration of the trajectory
-        move_group.startStateMonitor(2);
-        move_group.setStartState(*move_group.getCurrentState());
-        move_group.setJointValueTarget(initial_position);
+        move_group_.startStateMonitor(2);
+        move_group_.setStartState(*move_group_.getCurrentState());
+        move_group_.setJointValueTarget(initial_position);
 
-        robot_trajectory::RobotTrajectory trajectory(move_group.getRobotModel(), group_name);
-        success = (move_group.plan(my_plan) == moveit::core::MoveItErrorCode::SUCCESS);
+        robot_trajectory::RobotTrajectory trajectory(move_group_.getRobotModel(), group_name);
+        success = (move_group_.plan(my_plan) == moveit::core::MoveItErrorCode::SUCCESS);
         if(not success)
         {
           RCLCPP_ERROR(this->get_logger(),"planning failed!");
@@ -488,8 +495,24 @@ private:
 int main(int argc, char ** argv)
 {
   rclcpp::init(argc, argv);
-  auto action_server = std::make_shared<TrajectoryLoaderServer>();
-  rclcpp::spin(action_server);
+
+  rclcpp::NodeOptions node_options;
+  node_options.automatically_declare_parameters_from_overrides(true);
+
+  auto node = rclcpp::Node::make_shared("trajectory_loader_node", node_options);
+
+  rclcpp::executors::MultiThreadedExecutor executor;
+  executor.add_node(node);
+  std::thread([&executor]() { executor.spin(); }).detach();
+
+  static const std::string PLANNING_GROUP = "manipulator";
+  moveit::planning_interface::MoveGroupInterface move_group(node, PLANNING_GROUP);
+  RCLCPP_WARN(node->get_logger(),"QUUAAAAAAAAA");
+
+  //LEGGI ROBOT DESCRIPTION E CARICALA NEI PARAMETRI DEL NODO
+
+  rclcpp::spin(std::make_shared<TrajectoryLoaderServer>(move_group,node_options));
+
 
   rclcpp::shutdown();
   return 0;
