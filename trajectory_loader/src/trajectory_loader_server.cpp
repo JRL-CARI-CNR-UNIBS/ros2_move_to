@@ -38,27 +38,27 @@ public:
     this->display_trj_pub_ = this->create_publisher<moveit_msgs::msg::DisplayTrajectory>("/simulated_trajectory",1);
 
     // Get robot_description
-    // rclcpp::SyncParametersClient::SharedPtr parameters_client = std::make_shared<rclcpp::SyncParametersClient>(this, std::string("/move_group"));
-    // while (!parameters_client->wait_for_service(1s))
-    // {
-    //   if (!rclcpp::ok())
-    //   {
-    //     RCLCPP_ERROR(this->get_logger(), "Interrupted while waiting for the service. Exiting.");
-    //     rclcpp::shutdown();
-    //   }
-    //   RCLCPP_INFO(this->get_logger(), "service not available, waiting again...");
-    // }
-    // if(not parameters_client->has_parameter("robot_description"))
-    //   RCLCPP_ERROR(this->get_logger(), "Cannot find robot_description parameter");
-    // if(not parameters_client->has_parameter("robot_description_semantic"))
-    //   RCLCPP_ERROR(this->get_logger(), "Cannot find robot_description_semantic parameter");
+    rclcpp::SyncParametersClient::SharedPtr parameters_client = std::make_shared<rclcpp::SyncParametersClient>(this, std::string("/move_group"));
+    while (!parameters_client->wait_for_service(1s))
+    {
+      if (!rclcpp::ok())
+      {
+        RCLCPP_ERROR(this->get_logger(), "Interrupted while waiting for the service. Exiting.");
+        rclcpp::shutdown();
+      }
+      RCLCPP_INFO(this->get_logger(), "service not available, waiting again...");
+    }
+    if(not parameters_client->has_parameter("robot_description"))
+      RCLCPP_ERROR(this->get_logger(), "Cannot find robot_description parameter");
+    if(not parameters_client->has_parameter("robot_description_semantic"))
+      RCLCPP_ERROR(this->get_logger(), "Cannot find robot_description_semantic parameter");
 
     std::string param_name = "robot_description";
-    // std::string robot_description = parameters_client->get_parameter<std::string>(param_name);
-    // rclcpp::Parameter robot_description_param(param_name,robot_description);
+    std::string robot_description = parameters_client->get_parameter<std::string>(param_name);
+    rclcpp::Parameter robot_description_param(param_name,robot_description);
 
-    // this->declare_parameter(param_name, rclcpp::PARAMETER_STRING);
-    // this->set_parameter(robot_description_param);
+    this->declare_parameter(param_name, rclcpp::PARAMETER_STRING);
+    this->set_parameter(robot_description_param);
 
     if(not this->has_parameter(param_name))
       throw std::runtime_error("no robot description");
@@ -66,19 +66,23 @@ public:
       RCLCPP_WARN(this->get_logger(),"robot description loaded");
 
     param_name = "robot_description_semantic";
-    // std::string robot_description_semantic = parameters_client->get_parameter<std::string>(param_name);
-    // rclcpp::Parameter robot_description_semantic_param(param_name,robot_description_semantic);
+    std::string robot_description_semantic = parameters_client->get_parameter<std::string>(param_name);
+    rclcpp::Parameter robot_description_semantic_param(param_name,robot_description_semantic);
 
-    // this->declare_parameter(param_name, rclcpp::PARAMETER_STRING);
-    // this->set_parameter(robot_description_semantic_param);
+    this->declare_parameter(param_name, rclcpp::PARAMETER_STRING);
+    this->set_parameter(robot_description_semantic_param);
 
     if(not this->has_parameter(param_name))
       throw std::runtime_error("no robot description semantic");
     else
       RCLCPP_WARN(this->get_logger(),"robot description semantic loaded");
+
+    const char* env_p = std::getenv("CNR_PARAM_ROOT_DIRECTORY");
+    param_root_directory_ = (env_p) ? std::string(env_p) : "~/.cnr_param";
   }
 
 private:
+  std::string param_root_directory_;
   trajectory_msgs::msg::JointTrajectory trajectory_;
   rclcpp::Publisher<moveit_msgs::msg::DisplayTrajectory>::SharedPtr display_trj_pub_;
   rclcpp_action::Client<moveit_msgs::action::ExecuteTrajectory>::SharedPtr client_ptr_;
@@ -87,8 +91,6 @@ private:
 
   void load_trajectory()
   {
-    std::string node_ns = this->get_namespace();
-
     this->client_ptr_ = rclcpp_action::create_client<moveit_msgs::action::ExecuteTrajectory>(this,"/execute_trajectory");
 
     auto result = std::make_shared<trajectory_loader::action::TrajectoryLoaderAction::Result>();
@@ -120,7 +122,7 @@ private:
     if(executed_trjs.size()==0)
     {
       std::string w;
-      if(not cnr::param::get(node_ns+"/list_of_trajectories",executed_trjs,w))
+      if(not cnr::param::get("/list_of_trajectories",executed_trjs,w))
       {
         RCLCPP_ERROR(this->get_logger(), "No list of trajectories specified!");
         result->error = "No list of trajectories specified!";
@@ -154,9 +156,11 @@ private:
         moveit_msgs::msg::RobotTrajectory approach_trj;
 
         std::string what;
-        if (not getTrajectoryFromParam(node_ns+"/"+current_trj_name, trj_from_param, what))
+        if(not getTrajectoryFromParam(current_trj_name, trj_from_param, what))
         {
           RCLCPP_ERROR(this->get_logger(),"%s not found", current_trj_name.c_str());
+          RCLCPP_ERROR_STREAM(this->get_logger(),"what"<< what);
+
           result->error = current_trj_name+ " not found";
           goal_handle_->abort(result);
           return;
@@ -176,7 +180,10 @@ private:
         }
         else
         {
+
           trj_state.setJointGroupPositions(group_name, initial_position);
+          RCLCPP_INFO(this->get_logger(),"QUA1");
+
           robot_trajectory::RobotTrajectory trajectory(move_group.getRobotModel(), group_name);
           trajectory.setRobotTrajectoryMsg(trj_state, trj_from_param);
           if(rescale)
@@ -321,14 +328,9 @@ private:
     return ret;
   }
 
-  bool getTrajectoryFromParam(const std::string& full_path_to_trj, trajectory_msgs::msg::JointTrajectory& trj, std::string& what)
+  bool getTrajectoryFromParam(const std::string& trj_name, trajectory_msgs::msg::JointTrajectory& trj, std::string& what)
   {
-    what = "";
-    if((full_path_to_trj.length()==0)||(full_path_to_trj.front()!='/'))
-    {
-      what = "Error: The input 'full_path_to_trj' name is void or does not start with '/'";
-      return false;
-    }
+    RCLCPP_INFO_STREAM(this->get_logger(),"reading trajectory "<<trj_name);
 
     std::vector<std::string>          n;
     std::vector<double>               t;
@@ -341,7 +343,7 @@ private:
     {
       std::string w;
       bool ok = true;
-      std::string ns = full_path_to_trj+"/" + params.at(i);
+      std::string ns = trj_name+"/"+params.at(i);
       switch(i)
       {
       case 0:
@@ -370,7 +372,7 @@ private:
 
     if((q.size() == 0) || (q.at(0).size() == 0))
     {
-      what += full_path_to_trj + "/positions is broken";
+      what += trj_name + "/positions is broken";
       return false;
     }
     size_t np = q.size();
@@ -381,7 +383,7 @@ private:
        || (qd.size()!=0 && !checkd(qd, np , "velocities", what))
        || (qdd.size()!=0 && !checkd(qdd, np , "accelerations", what))
        || (eff.size()!=0 && !checkd(eff, np , "effort", what) ))
-    {rclcpp::executors::SingleThreadedExecutor executor;
+    {
       return false;
     }
 
@@ -481,12 +483,10 @@ int main(int argc, char ** argv)
 
   rclcpp::NodeOptions node_options;
   node_options.automatically_declare_parameters_from_overrides(true);
-
   auto node = std::make_shared<TrajectoryLoaderServer>(node_options);
-  rclcpp::executors::MultiThreadedExecutor executor;
-  executor.add_node(node);
-  executor.spin();
 
+  rclcpp::spin(node);
   rclcpp::shutdown();
+
   return 0;
 }

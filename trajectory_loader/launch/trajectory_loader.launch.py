@@ -9,7 +9,7 @@ from launch_ros.substitutions import FindPackageShare
 from moveit_configs_utils import MoveItConfigsBuilder
 
 def generate_launch_description():
-  moveit_configs = MoveItConfigsBuilder("nj-220-27").to_moveit_configs()
+#  moveit_configs = MoveItConfigsBuilder("nj-220-27").to_moveit_configs()
   
   return LaunchDescription([
     ExecuteProcess(
@@ -30,9 +30,10 @@ def generate_launch_description():
       executable="trajectory_loader_server",
       output="screen",
       namespace="trajectory_loader",
-      prefix=['gdb -ex=r --args'],
+      # prefix=['gdb -ex=r --args'],
       ros_arguments=["--log-level", "info"],
-      parameters=[moveit_configs.to_dict(),
-                  {"use_sim_time": True}],
+      parameters=[{"use_sim_time": True}],
+#      parameters=[moveit_configs.to_dict(),
+#                  {"use_sim_time": True}],
     )
 ])

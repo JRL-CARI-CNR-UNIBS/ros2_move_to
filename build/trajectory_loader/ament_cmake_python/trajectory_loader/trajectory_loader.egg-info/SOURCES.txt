@@ -1,6 +1,0 @@
-setup.py
-trajectory_loader/__init__.py
-trajectory_loader.egg-info/PKG-INFO
-trajectory_loader.egg-info/SOURCES.txt
-trajectory_loader.egg-info/dependency_links.txt
-trajectory_loader.egg-info/top_level.txt

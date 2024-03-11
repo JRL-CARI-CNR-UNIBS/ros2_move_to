@@ -1,1 +1,0 @@
-ament_cmake_symlink_install_targets("TARGET_FILES" "/home/gino/projects/kuka_cell_ws/src/ros2_move_to/build/trajectory_loader/trajectory_loader_server" "/home/gino/projects/kuka_cell_ws/src/ros2_move_to/build/trajectory_loader/trajectory_loader_test" "TARGETS" "trajectory_loader_server" "trajectory_loader_test" "DESTINATION" "lib/trajectory_loader")

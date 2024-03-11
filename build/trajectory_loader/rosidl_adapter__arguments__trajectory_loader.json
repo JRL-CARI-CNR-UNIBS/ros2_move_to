@@ -1,6 +1,0 @@
-{
-  "package_name": "trajectory_loader",
-  "non_idl_tuples": [
-    "/home/gino/projects/kuka_cell_ws/src/ros2_move_to/trajectory_loader:action/TrajectoryLoaderAction.action"
-  ]
-}
