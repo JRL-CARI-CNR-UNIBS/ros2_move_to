@@ -26,8 +26,8 @@ using namespace std::chrono_literals;
 class TrajectoryLoaderServer : public rclcpp::Node
 {
 public:
-  explicit TrajectoryLoaderServer(moveit::planning_interface::MoveGroupInterface& move_group, const rclcpp::NodeOptions & node_options = rclcpp::NodeOptions().automatically_declare_parameters_from_overrides(true))
-    : Node("trajectory_loader_server", node_options), move_group_(move_group)
+  explicit TrajectoryLoaderServer(const rclcpp::NodeOptions & node_options = rclcpp::NodeOptions().automatically_declare_parameters_from_overrides(true))
+    : Node("trajectory_loader_server", node_options)
   {
     this->server_ptr_ = rclcpp_action::create_server<trajectory_loader::action::TrajectoryLoaderAction>(
           this,"/trajectory_loader",
@@ -36,7 +36,6 @@ public:
           std::bind(&TrajectoryLoaderServer::handle_accepted, this, std::placeholders::_1));
 
     this->display_trj_pub_ = this->create_publisher<moveit_msgs::msg::DisplayTrajectory>("/simulated_trajectory",1);
-
 
     // Get robot_description
     rclcpp::SyncParametersClient::SharedPtr parameters_client = std::make_shared<rclcpp::SyncParametersClient>(this, std::string("/move_group"));
@@ -51,13 +50,35 @@ public:
     }
     if(not parameters_client->has_parameter("robot_description"))
       RCLCPP_ERROR(this->get_logger(), "Cannot find robot_description parameter");
+    if(not parameters_client->has_parameter("robot_description_semantic"))
+      RCLCPP_ERROR(this->get_logger(), "Cannot find robot_description_semantic parameter");
 
-    robot_description_ = parameters_client->get_parameter<std::string>("robot_description");
+    std::string param_name = "robot_description";
+    std::string robot_description = parameters_client->get_parameter<std::string>(param_name);
+    rclcpp::Parameter robot_description_param(param_name,robot_description);
+
+    this->declare_parameter(param_name, rclcpp::PARAMETER_STRING);
+    this->set_parameter(robot_description_param);
+
+    if(not this->has_parameter(param_name))
+      throw std::runtime_error("no robot description");
+    else
+      RCLCPP_WARN(this->get_logger(),"robot description loaded");
+
+    param_name = "robot_description_semantic";
+    std::string robot_description_semantic = parameters_client->get_parameter<std::string>(param_name);
+    rclcpp::Parameter robot_description_semantic_param(param_name,robot_description_semantic);
+
+    this->declare_parameter(param_name, rclcpp::PARAMETER_STRING);
+    this->set_parameter(robot_description_semantic_param);
+
+    if(not this->has_parameter(param_name))
+      throw std::runtime_error("no robot description semantic");
+    else
+      RCLCPP_WARN(this->get_logger(),"robot description semantic loaded");
   }
 
 private:
-  moveit::planning_interface::MoveGroupInterface& move_group_;
-  std::string robot_description_;
   trajectory_msgs::msg::JointTrajectory trajectory_;
   rclcpp::Publisher<moveit_msgs::msg::DisplayTrajectory>::SharedPtr display_trj_pub_;
   rclcpp_action::Client<moveit_msgs::action::ExecuteTrajectory>::SharedPtr client_ptr_;
@@ -92,47 +113,9 @@ private:
       }
     }
 
-    RCLCPP_WARN(this->get_logger(),"QUA");
-
-    if(this->robot_description_.empty())
-    {
-      RCLCPP_WARN(this->get_logger(),"robot_description not available");
-      result->error = "robot_description not available";
-      goal_handle_->abort(result);
-      return;
-    }
-    RCLCPP_WARN(this->get_logger(),"QUA1");
-    RCLCPP_WARN_STREAM(this->get_logger(),this->robot_description_);
-
-
-    const rclcpp::Node::SharedPtr node = this->shared_from_this();
-    RCLCPP_ERROR_STREAM(this->get_logger(),node->get_name());
-
-
-//    moveit::planning_interface::MoveGroupInterface move_group(node,group_name);
-    //    moveit::planning_interface::MoveGroupInterface::Options opt(group_name,this->robot_description_);
-    RCLCPP_WARN(this->get_logger(),"QUA2");
-
-    //    moveit::planning_interface::MoveGroupInterface move_group(node,opt);
-
-    RCLCPP_WARN(this->get_logger(),"QUA3");
-
+    moveit::planning_interface::MoveGroupInterface move_group(this->shared_from_this(),group_name);
     moveit::planning_interface::MoveGroupInterface::Plan my_plan;
     bool success;
-
-    //    if(executed_trjs.size()==0)
-    //    {
-    //      rclcpp::Parameter trjs;
-    //      if(not this->get_parameter("list_of_trajectories", trjs))
-    //      {
-    //        RCLCPP_ERROR(this->get_logger(), "No list of trajectories specified!");
-    //        result->error = "No list of trajectories specified!";
-    //        goal_handle_->abort(result);
-    //        return;
-    //      }
-    //      else
-    //        executed_trjs = trjs.as_string_array();
-    //    }
 
     if(executed_trjs.size()==0)
     {
@@ -148,8 +131,8 @@ private:
         RCLCPP_INFO(this->get_logger(), "trajectories read from param!");
     }
 
-    move_group_.startStateMonitor();
-    moveit::core::RobotState trj_state = *move_group_.getCurrentState();
+    move_group.startStateMonitor();
+    moveit::core::RobotState trj_state = *move_group.getCurrentState();
 
     for(unsigned irep = 0; irep<repetitions; irep++)
     {
@@ -194,7 +177,7 @@ private:
         else
         {
           trj_state.setJointGroupPositions(group_name, initial_position);
-          robot_trajectory::RobotTrajectory trajectory(move_group_.getRobotModel(), group_name);
+          robot_trajectory::RobotTrajectory trajectory(move_group.getRobotModel(), group_name);
           trajectory.setRobotTrajectoryMsg(trj_state, trj_from_param);
           if(rescale)
           {
@@ -213,12 +196,12 @@ private:
           return;
 
         //Go to the first configuration of the trajectory
-        move_group_.startStateMonitor(2);
-        move_group_.setStartState(*move_group_.getCurrentState());
-        move_group_.setJointValueTarget(initial_position);
+        move_group.startStateMonitor(2);
+        move_group.setStartState(*move_group.getCurrentState());
+        move_group.setJointValueTarget(initial_position);
 
-        robot_trajectory::RobotTrajectory trajectory(move_group_.getRobotModel(), group_name);
-        success = (move_group_.plan(my_plan) == moveit::core::MoveItErrorCode::SUCCESS);
+        robot_trajectory::RobotTrajectory trajectory(move_group.getRobotModel(), group_name);
+        success = (move_group.plan(my_plan) == moveit::core::MoveItErrorCode::SUCCESS);
         if(not success)
         {
           RCLCPP_ERROR(this->get_logger(),"planning failed!");
@@ -505,14 +488,7 @@ int main(int argc, char ** argv)
   executor.add_node(node);
   std::thread([&executor]() { executor.spin(); }).detach();
 
-  static const std::string PLANNING_GROUP = "manipulator";
-  moveit::planning_interface::MoveGroupInterface move_group(node, PLANNING_GROUP);
-  RCLCPP_WARN(node->get_logger(),"QUUAAAAAAAAA");
-
-  //LEGGI ROBOT DESCRIPTION E CARICALA NEI PARAMETRI DEL NODO
-
-  rclcpp::spin(std::make_shared<TrajectoryLoaderServer>(move_group,node_options));
-
+  rclcpp::spin(std::make_shared<TrajectoryLoaderServer>(node_options));
 
   rclcpp::shutdown();
   return 0;
