@@ -23,7 +23,6 @@ find_package(moveit_msgs REQUIRED)
 find_package(action_msgs REQUIRED)
 find_package(moveit_ros_planning_interface REQUIRED)
 
-
 rosidl_generate_interfaces(${PROJECT_NAME}
   "action/TrajectoryLoaderAction.action"
 )

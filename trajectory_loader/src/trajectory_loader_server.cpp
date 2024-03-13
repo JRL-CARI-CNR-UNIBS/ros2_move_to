@@ -8,6 +8,7 @@
 #include "trajectory_loader/action/trajectory_loader_action.hpp"
 #include "moveit/move_group_interface/move_group_interface.h"
 #include "moveit/trajectory_processing/iterative_spline_parameterization.h"
+#include "moveit/trajectory_processing/time_optimal_trajectory_generation.h"
 #include "cnr_param/cnr_param.h"
 #include "builtin_interfaces/msg/duration.hpp"
 #include "std_srvs/srv/empty.hpp"
@@ -55,8 +56,8 @@ public:
 
     std::string param_name = "robot_description";
     std::string robot_description = parameters_client->get_parameter<std::string>(param_name);
-    rclcpp::Parameter robot_description_param(param_name,robot_description);
 
+    rclcpp::Parameter robot_description_param(param_name,robot_description);
     this->declare_parameter(param_name, rclcpp::PARAMETER_STRING);
     this->set_parameter(robot_description_param);
 
@@ -67,8 +68,8 @@ public:
 
     param_name = "robot_description_semantic";
     std::string robot_description_semantic = parameters_client->get_parameter<std::string>(param_name);
-    rclcpp::Parameter robot_description_semantic_param(param_name,robot_description_semantic);
 
+    rclcpp::Parameter robot_description_semantic_param(param_name,robot_description_semantic);
     this->declare_parameter(param_name, rclcpp::PARAMETER_STRING);
     this->set_parameter(robot_description_semantic_param);
 
@@ -76,13 +77,9 @@ public:
       throw std::runtime_error("no robot description semantic");
     else
       RCLCPP_WARN(this->get_logger(),"robot description semantic loaded");
-
-    const char* env_p = std::getenv("CNR_PARAM_ROOT_DIRECTORY");
-    param_root_directory_ = (env_p) ? std::string(env_p) : "~/.cnr_param";
   }
 
 private:
-  std::string param_root_directory_;
   trajectory_msgs::msg::JointTrajectory trajectory_;
   rclcpp::Publisher<moveit_msgs::msg::DisplayTrajectory>::SharedPtr display_trj_pub_;
   rclcpp_action::Client<moveit_msgs::action::ExecuteTrajectory>::SharedPtr client_ptr_;
@@ -98,11 +95,12 @@ private:
 
     result->ok = false;
     const auto goal = goal_handle_->get_goal();
-    bool simulate = goal->simulation;
-    static const std::string group_name = goal->group_name;
-    std::vector<std::string> executed_trjs = goal->trj_names;
-    bool rescale = goal->rescale;
-    unsigned int repetitions = goal->repetitions;
+
+    const bool rescale = goal->rescale;
+    const bool simulate = goal->simulation;
+    const std::string group_name = goal->group_name;
+    const unsigned int repetitions = goal->repetitions;
+    const std::vector<std::string> list_of_trjs = goal->trj_names;
 
     if(not simulate)
     {
@@ -115,198 +113,238 @@ private:
       }
     }
 
-    moveit::planning_interface::MoveGroupInterface move_group(this->shared_from_this(),group_name);
-    moveit::planning_interface::MoveGroupInterface::Plan my_plan;
+    bool scale;
     bool success;
-
-    if(executed_trjs.size()==0)
-    {
-      std::string w;
-      if(not cnr::param::get("/list_of_trajectories",executed_trjs,w))
-      {
-        RCLCPP_ERROR(this->get_logger(), "No list of trajectories specified!");
-        result->error = "No list of trajectories specified!";
-        goal_handle_->abort(result);
-        return;
-      }
-      else
-        RCLCPP_INFO(this->get_logger(), "trajectories read from param!");
-    }
+    moveit::planning_interface::MoveGroupInterface::Plan plan;
+    moveit::planning_interface::MoveGroupInterface move_group(this->shared_from_this(),group_name);
 
     move_group.startStateMonitor();
-    moveit::core::RobotState trj_state = *move_group.getCurrentState();
+    moveit::core::RobotState robot_current_state = *move_group.getCurrentState();
 
     for(unsigned irep = 0; irep<repetitions; irep++)
     {
       if(goal_handle_->is_canceling())
         return;
 
-      for (const std::string & current_trj_name : executed_trjs)
+      for(const std::string& trj_name : list_of_trjs)
       {
         if(goal_handle_->is_canceling())
           return;
 
-        feedback->trj_in_execution = current_trj_name;
+        scale = rescale;
+        robot_current_state = *move_group.getCurrentState();
+
         feedback->current_repetition = irep;
+        feedback->trj_in_execution = trj_name;
 
         goal_handle_->publish_feedback(feedback);
 
-        trajectory_msgs::msg::JointTrajectory trj_from_param;
-        moveit_msgs::msg::RobotTrajectory my_trj;
+        moveit_msgs::msg::RobotTrajectory trj;
         moveit_msgs::msg::RobotTrajectory approach_trj;
+        trajectory_msgs::msg::JointTrajectory trj_from_param;
 
         std::string what;
-        if(not getTrajectoryFromParam(current_trj_name, trj_from_param, what))
+        if(not getTrajectoryFromParam(trj_name, trj_from_param, what))
         {
-          RCLCPP_ERROR(this->get_logger(),"%s not found", current_trj_name.c_str());
-          RCLCPP_ERROR_STREAM(this->get_logger(),"what"<< what);
+          RCLCPP_ERROR(this->get_logger(),"%s not found", trj_name.c_str());
+          RCLCPP_ERROR_STREAM(this->get_logger(), what);
 
-          result->error = current_trj_name+ " not found";
+          result->error = trj_name+" not found";
           goal_handle_->abort(result);
           return;
+        }
+        else
+        {
+          if(trj_from_param.points.back().time_from_start == rclcpp::Duration::from_seconds(0.0))
+            scale = true;
         }
 
         if(goal_handle_->is_canceling())
           return;
 
-        // Next get the current set of joint values for the group.
-        std::vector<double> initial_position = trj_from_param.points.begin()->positions;
+        std::vector<double> initial_trj_position = trj_from_param.points.begin()->positions;
 
         bool is_single_point = false;
-        if (trj_from_param.points.size() < 2)
+        if(trj_from_param.points.size() < 2)
         {
-          my_trj.joint_trajectory = trj_from_param;
           is_single_point = true;
+          trj.joint_trajectory = trj_from_param;
+          RCLCPP_WARN_STREAM(this->get_logger(),"Single point trajectory!");
         }
         else
         {
-
-          trj_state.setJointGroupPositions(group_name, initial_position);
-          RCLCPP_INFO(this->get_logger(),"QUA1");
-
-          robot_trajectory::RobotTrajectory trajectory(move_group.getRobotModel(), group_name);
-          trajectory.setRobotTrajectoryMsg(trj_state, trj_from_param);
-          if(rescale)
+          if(scale)
           {
-            trajectory_processing::IterativeSplineParameterization isp;
-            isp.computeTimeStamps(trajectory);
-            trajectory.getRobotTrajectoryMsg(my_trj);
+            //trj_state.setJointGroupPositions(group_name, initial_position);
+            //robot_current_state.setJointGroupActivePositions(group_name, initial_trj_position);
+
+            robot_trajectory::RobotTrajectory trajectory(move_group.getRobotModel(), group_name);
+            trajectory.setRobotTrajectoryMsg(robot_current_state, trj_from_param);
+
+            trajectory_processing::TimeOptimalTrajectoryGeneration trj_processing;
+            trj_processing.computeTimeStamps(trajectory);
+            trajectory.getRobotTrajectoryMsg(trj);
+
+            RCLCPP_WARN(this->get_logger(),"Trajectory is scaled");
           }
           else
-            my_trj.joint_trajectory=trj_from_param;
+            trj.joint_trajectory=trj_from_param;
         }
-
-        if (rclcpp::Duration(my_trj.joint_trajectory.points.back().time_from_start) > rclcpp::Duration(trj_from_param.points.back().time_from_start))
-          RCLCPP_WARN(this->get_logger(),"trajectory is scaled to respect joint limit");
 
         if(goal_handle_->is_canceling())
           return;
 
         //Go to the first configuration of the trajectory
-        move_group.startStateMonitor(2);
-        move_group.setStartState(*move_group.getCurrentState());
-        move_group.setJointValueTarget(initial_position);
+        //        moveit::core::RobotStatePtr current_state = move_group.getCurrentState(10);
+        //        const moveit::core::JointModelGroup* joint_model_group =
+        //            move_group.getCurrentState()->getJointModelGroup(group_name);
+        //        std::vector<double> joint_group_positions;
+        //        current_state->copyJointGroupPositions(joint_model_group, joint_group_positions);
 
-        robot_trajectory::RobotTrajectory trajectory(move_group.getRobotModel(), group_name);
-        success = (move_group.plan(my_plan) == moveit::core::MoveItErrorCode::SUCCESS);
-        if(not success)
+        //        move_group.setStartState(*move_group.getCurrentState());
+
+        std::map<std::string, double> target_configuration;
+        for(size_t j=0;j<trj_from_param.joint_names.size();j++)
         {
-          RCLCPP_ERROR(this->get_logger(),"planning failed!");
-          result->error = "planning failed!";
-          goal_handle_->abort(result);
-          return;
+          std::pair<std::string, double> p;
+          p.first = trj_from_param.joint_names[j];
+          p.second = initial_trj_position[j];
+          target_configuration.insert(p);
+        }
+        move_group.setJointValueTarget(target_configuration);
+
+        std::vector<double> current_position;
+        move_group.startStateMonitor();
+        auto current_state = *move_group.getCurrentState();
+        for(const std::string& n:trj_from_param.joint_names)
+        {
+          double d = *current_state.getJointPositions(n);
+          current_position.push_back(d);
         }
 
-        trajectory.setRobotTrajectoryMsg(trj_state, my_plan.trajectory_.joint_trajectory);
-        trajectory_processing::IterativeSplineParameterization isp;
-        isp.computeTimeStamps(trajectory);
+        for(const double& d: current_position)
+          RCLCPP_WARN_STREAM(this->get_logger(),"current pos j "<<d);
+
+        for(const double& d: initial_trj_position)
+          RCLCPP_WARN_STREAM(this->get_logger(),"initial pos j "<<d);
+
+        robot_trajectory::RobotTrajectory trajectory(move_group.getRobotModel(), group_name);
+        success = (move_group.plan(plan) == moveit::core::MoveItErrorCode::SUCCESS);
+        if(not success)
+        {
+          RCLCPP_ERROR(this->get_logger(),"Planning to initial trj position failed!");
+          result->error = "planning failed!";
+          return;
+          goal_handle_->abort(result);
+        }
+
+        trajectory.setRobotTrajectoryMsg(robot_current_state, plan.trajectory_.joint_trajectory);
+        trajectory_processing::TimeOptimalTrajectoryGeneration trj_processing;
+        trj_processing.computeTimeStamps(trajectory);
         trajectory.getRobotTrajectoryMsg(approach_trj);
 
-        if(not simulate)
-          RCLCPP_INFO(this->get_logger(),"Move %s to initial position", group_name.c_str());
+        RCLCPP_ERROR_STREAM(this->get_logger(),"approach trj\n"<<trajectory);
 
         if(goal_handle_->is_canceling())
           return;
 
         moveit_msgs::action::ExecuteTrajectory::Goal goal;
-        if(is_single_point && (not simulate))
+        if(not simulate)
         {
-          //          this->get_clock()->sleep_for(std::chrono_literals::operator""s(3));
-          goal.trajectory = approach_trj;
+          // Execute approach trajectory
+          RCLCPP_INFO(this->get_logger(),"Move %s to initial position", group_name.c_str());
 
-          auto future_goal_handle=this->client_ptr_->async_send_goal(goal);
-          if(future_goal_handle.get() == nullptr)
+          moveit::core::MoveItErrorCode moveit_error_code = move_group.execute(approach_trj);
+          if(moveit_error_code != moveit::core::MoveItErrorCode::SUCCESS)
           {
-            result->error = "/execute_trajectory action rejected the goal";
+            RCLCPP_ERROR_STREAM(this->get_logger(), "Move group move failed with error code "
+                                <<moveit::core::error_code_to_string(moveit_error_code));
+            result->error = "Move group move failed with error code "+moveit::core::error_code_to_string(moveit_error_code);
             goal_handle_->abort(result);
             return;
           }
+          //          goal.trajectory = approach_trj;
+
+          //          auto future_goal_handle=this->client_ptr_->async_send_goal(goal);
+          //          if(future_goal_handle.get() == nullptr)
+          //          {
+          //            RCLCPP_ERROR(this->get_logger(), "/execute_trajectory action rejected the goal");
+          //            result->error = "/execute_trajectory action rejected the goal";
+          //            goal_handle_->abort(result);
+          //            return;
+          //          }
+
+          //          auto future_result_handle = this->client_ptr_->async_get_result(future_goal_handle.get());
+          //          if(future_result_handle.get().code != rclcpp_action::ResultCode::SUCCEEDED)
+          //          {
+          //            RCLCPP_ERROR(this->get_logger(), "/execute_trajectory failed");
+          //            result->error = "/execute_trajectory failed";
+          //            goal_handle_->abort(result);
+          //            return;
+          //          }
+
+          RCLCPP_WARN(this->get_logger(),"AFTER APPROACH");
 
           if(goal_handle_->is_canceling())
             return;
 
-          //Goal accepted by the action server, wait for result
-          this->client_ptr_->async_get_result(future_goal_handle.get());
+          if(not is_single_point)
+          {
+            // Execute the trajectory
+            RCLCPP_INFO(this->get_logger(), "Execute trajectory %s", trj_name.c_str());
 
-          //          auto action_client_result_future= this->client_ptr_->async_get_result(future_goal_handle.get());
-          //          auto action_client_result = action_client_result_future.get();
+            moveit::core::MoveItErrorCode moveit_error_code = move_group.execute(trj);
+            if(moveit_error_code != moveit::core::MoveItErrorCode::SUCCESS)
+            {
+              RCLCPP_ERROR_STREAM(this->get_logger(), "Move group move failed with error code "
+                                  <<moveit::core::error_code_to_string(moveit_error_code));
+              result->error = "Move group move failed with error code "+moveit::core::error_code_to_string(moveit_error_code);
+              goal_handle_->abort(result);
+              return;
+            }
+
+//            goal.trajectory = trj;
+
+//            auto future_goal_handle=this->client_ptr_->async_send_goal(goal);
+//            if(future_goal_handle.get() == nullptr)
+//            {
+//              RCLCPP_ERROR(this->get_logger(), "/execute_trajectory action rejected the goal");
+//              result->error = "/execute_trajectory action rejected the goal";
+//              goal_handle_->abort(result);
+//              return;
+//            }
+
+//            auto future_result_handle = this->client_ptr_->async_get_result(future_goal_handle.get());
+//            if(future_result_handle.get().code != rclcpp_action::ResultCode::SUCCEEDED)
+//            {
+//              RCLCPP_ERROR(this->get_logger(), "/execute_trajectory failed");
+//              result->error = "/execute_trajectory failed";
+//              goal_handle_->abort(result);
+//              return;
+//            }
+
+            if(goal_handle_->is_canceling())
+              return;
+          }
         }
         else
         {
-          if(not simulate)
-          {
-            goal.trajectory = approach_trj;
-            auto future_goal_handle=this->client_ptr_->async_send_goal(goal);
-            if(future_goal_handle.get() == nullptr)
-            {
-              result->error = "/execute_trajectory action rejected the goal";
-              goal_handle_->abort(result);
-              return;
-            }
+          moveit_msgs::msg::DisplayTrajectory display_trj_msg;
+          display_trj_msg.trajectory.push_back(approach_trj);
+          display_trj_pub_->publish(display_trj_msg);
 
-            if(goal_handle_->is_canceling())
-              return;
+          this->get_clock()->sleep_for(
+                std::chrono_literals::operator""s(
+                  rclcpp::Duration(approach_trj.joint_trajectory.points.back().time_from_start).seconds()));
 
-            //Goal accepted by the action server, wait for result
-            this->client_ptr_->async_get_result(future_goal_handle.get());
+          if(goal_handle_->is_canceling())
+            return;
 
-            //            this->get_clock()->sleep_for(std::chrono_literals::operator""s(3));
-
-            RCLCPP_INFO(this->get_logger(), "Execute trajectory %s", current_trj_name.c_str());
-            goal.trajectory = my_trj;
-            future_goal_handle=this->client_ptr_->async_send_goal(goal);
-            if(future_goal_handle.get() == nullptr)
-            {
-              result->error = "/execute_trajectory action rejected the goal";
-              goal_handle_->abort(result);
-              return;
-            }
-
-            if(goal_handle_->is_canceling())
-              return;
-
-            //Goal accepted by the action server, wait for result
-            this->client_ptr_->async_get_result(future_goal_handle.get());
-          }
-          else
-          {
-            moveit_msgs::msg::DisplayTrajectory display_trj_msg;
-            display_trj_msg.trajectory.push_back(approach_trj);
-            display_trj_pub_->publish(display_trj_msg);
-
-            this->get_clock()->sleep_for(
-                  std::chrono_literals::operator""s(
-                    rclcpp::Duration(approach_trj.joint_trajectory.points.back().time_from_start).seconds()));
-
-            if(goal_handle_->is_canceling())
-              return;
-
-            display_trj_msg.trajectory.at(0)=my_trj;
-            display_trj_pub_->publish(display_trj_msg);
-            this->get_clock()->sleep_for(
-                  std::chrono_literals::operator""s(
-                    rclcpp::Duration(my_trj.joint_trajectory.points.back().time_from_start).seconds()));
-          }
+          display_trj_msg.trajectory.at(0)=trj;
+          display_trj_pub_->publish(display_trj_msg);
+          this->get_clock()->sleep_for(
+                std::chrono_literals::operator""s(
+                  rclcpp::Duration(trj.joint_trajectory.points.back().time_from_start).seconds()));
         }
       }
     }
@@ -330,7 +368,7 @@ private:
 
   bool getTrajectoryFromParam(const std::string& trj_name, trajectory_msgs::msg::JointTrajectory& trj, std::string& what)
   {
-    RCLCPP_INFO_STREAM(this->get_logger(),"reading trajectory "<<trj_name);
+    RCLCPP_INFO(this->get_logger(),"Reading trajectory %s from param ",trj_name.c_str());
 
     std::vector<std::string>          n;
     std::vector<double>               t;
@@ -431,6 +469,19 @@ private:
 
       trj.points.at(i).time_from_start = duration;
     }
+
+    RCLCPP_INFO_STREAM(this->get_logger(),"Trajectory read from param positions:");
+    for(size_t i=0;i<np;i++)
+    {
+      std::string pos = "";
+      unsigned int n=0;
+      for(const auto& d:trj.points.at(i).positions)
+      {
+        pos = pos+std::to_string(d)+ " ";
+      }
+      RCLCPP_INFO_STREAM(this->get_logger(),"point "<<n<<": ["<<pos<<"]");
+    }
+
     return true;
   }
 
