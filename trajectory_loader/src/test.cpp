@@ -23,7 +23,7 @@ int main(int argc, char ** argv)
   std::vector<std::string> trj; trj.push_back("trj_test");
   goal.group_name = "manipulator";
   goal.repetitions = 5;
-  goal.rescale = true;
+  goal.rescale = false;
   goal.simulation = false;
   goal.trj_names = trj;
 

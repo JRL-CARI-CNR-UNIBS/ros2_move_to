@@ -175,9 +175,6 @@ private:
         {
           if(scale)
           {
-            //trj_state.setJointGroupPositions(group_name, initial_position);
-            //robot_current_state.setJointGroupActivePositions(group_name, initial_trj_position);
-
             robot_trajectory::RobotTrajectory trajectory(move_group.getRobotModel(), group_name);
             trajectory.setRobotTrajectoryMsg(robot_current_state, trj_from_param);
 
@@ -195,14 +192,6 @@ private:
           return;
 
         //Go to the first configuration of the trajectory
-        //        moveit::core::RobotStatePtr current_state = move_group.getCurrentState(10);
-        //        const moveit::core::JointModelGroup* joint_model_group =
-        //            move_group.getCurrentState()->getJointModelGroup(group_name);
-        //        std::vector<double> joint_group_positions;
-        //        current_state->copyJointGroupPositions(joint_model_group, joint_group_positions);
-
-        //        move_group.setStartState(*move_group.getCurrentState());
-
         std::map<std::string, double> target_configuration;
         for(size_t j=0;j<trj_from_param.joint_names.size();j++)
         {
@@ -222,12 +211,6 @@ private:
           current_position.push_back(d);
         }
 
-        for(const double& d: current_position)
-          RCLCPP_WARN_STREAM(this->get_logger(),"current pos j "<<d);
-
-        for(const double& d: initial_trj_position)
-          RCLCPP_WARN_STREAM(this->get_logger(),"initial pos j "<<d);
-
         robot_trajectory::RobotTrajectory trajectory(move_group.getRobotModel(), group_name);
         success = (move_group.plan(plan) == moveit::core::MoveItErrorCode::SUCCESS);
         if(not success)
@@ -243,7 +226,7 @@ private:
         trj_processing.computeTimeStamps(trajectory);
         trajectory.getRobotTrajectoryMsg(approach_trj);
 
-        RCLCPP_ERROR_STREAM(this->get_logger(),"approach trj\n"<<trajectory);
+        RCLCPP_INFO_STREAM(this->get_logger(),"Approach trj\n"<<trajectory);
 
         if(goal_handle_->is_canceling())
           return;
@@ -263,27 +246,6 @@ private:
             goal_handle_->abort(result);
             return;
           }
-          //          goal.trajectory = approach_trj;
-
-          //          auto future_goal_handle=this->client_ptr_->async_send_goal(goal);
-          //          if(future_goal_handle.get() == nullptr)
-          //          {
-          //            RCLCPP_ERROR(this->get_logger(), "/execute_trajectory action rejected the goal");
-          //            result->error = "/execute_trajectory action rejected the goal";
-          //            goal_handle_->abort(result);
-          //            return;
-          //          }
-
-          //          auto future_result_handle = this->client_ptr_->async_get_result(future_goal_handle.get());
-          //          if(future_result_handle.get().code != rclcpp_action::ResultCode::SUCCEEDED)
-          //          {
-          //            RCLCPP_ERROR(this->get_logger(), "/execute_trajectory failed");
-          //            result->error = "/execute_trajectory failed";
-          //            goal_handle_->abort(result);
-          //            return;
-          //          }
-
-          RCLCPP_WARN(this->get_logger(),"AFTER APPROACH");
 
           if(goal_handle_->is_canceling())
             return;
@@ -302,26 +264,6 @@ private:
               goal_handle_->abort(result);
               return;
             }
-
-//            goal.trajectory = trj;
-
-//            auto future_goal_handle=this->client_ptr_->async_send_goal(goal);
-//            if(future_goal_handle.get() == nullptr)
-//            {
-//              RCLCPP_ERROR(this->get_logger(), "/execute_trajectory action rejected the goal");
-//              result->error = "/execute_trajectory action rejected the goal";
-//              goal_handle_->abort(result);
-//              return;
-//            }
-
-//            auto future_result_handle = this->client_ptr_->async_get_result(future_goal_handle.get());
-//            if(future_result_handle.get().code != rclcpp_action::ResultCode::SUCCEEDED)
-//            {
-//              RCLCPP_ERROR(this->get_logger(), "/execute_trajectory failed");
-//              result->error = "/execute_trajectory failed";
-//              goal_handle_->abort(result);
-//              return;
-//            }
 
             if(goal_handle_->is_canceling())
               return;
@@ -380,27 +322,57 @@ private:
     for(size_t i=0; i<params.size(); i++)
     {
       std::string w;
-      bool ok = true;
+      bool ok;
       std::string ns = trj_name+"/"+params.at(i);
       switch(i)
       {
       case 0:
-        ok = cnr::param::get(ns,n,w);
+        ok = false; //joint names is mandatory
+        if(cnr::param::has(ns,w))
+        {
+          if(cnr::param::is_sequence(ns))
+            ok = cnr::param::get(ns,n,w);
+        }
         break;
       case 1:
-        ok = cnr::param::get(ns,t,w);
+        ok = true; //time is not mandatory
+        if(cnr::param::has(ns,w))
+        {
+          if(cnr::param::is_sequence(ns))
+            ok = cnr::param::get(ns,t,w);
+        }
         break;
       case 2:
-        ok = cnr::param::get(ns, q, w);
+        ok = false; //q is mandatory
+        if(cnr::param::has(ns,w))
+        {
+          if(cnr::param::is_sequence(ns))
+            ok = cnr::param::get(ns,q,w);
+        }
         break;
       case 3:
-        ok = cnr::param::get(ns, qd, w);
+        ok = true; //qd is not mandatory
+        if(cnr::param::has(ns,w))
+        {
+          if(cnr::param::is_sequence(ns))
+            ok = cnr::param::get(ns,qd,w);
+        }
         break;
       case 4:
-        ok = cnr::param::get(ns, qdd, w);
+        ok = true; //qdd is not mandatory
+        if(cnr::param::has(ns,w))
+        {
+          if(cnr::param::is_sequence(ns))
+            ok = cnr::param::get(ns,qdd,w);
+        }
         break;
       case 5:
-        ok = cnr::param::get(ns, eff, w);
+        ok = true; //effort is not mandatory
+        if(cnr::param::has(ns,w))
+        {
+          if(cnr::param::is_sequence(ns))
+            ok = cnr::param::get(ns,eff,w);
+        }
         break;
       }
       what += (what.length()>0 && w.length()>0 ? "\n" : "") + w;
