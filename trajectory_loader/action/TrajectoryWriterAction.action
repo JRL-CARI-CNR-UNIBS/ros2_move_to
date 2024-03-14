@@ -1,6 +1,0 @@
-string topic_to_listen # must be joint_state topic
-string path_to_file # path where to save the yaml file
----
-int32[] n_points # total number of trajectory points
----
-int32[] partial_n_points # current number of trajectory points

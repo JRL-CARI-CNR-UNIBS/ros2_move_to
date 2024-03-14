@@ -1,0 +1,11 @@
+#Goal
+string group_name
+string location_name
+bool simulation
+---
+#Result
+bool ok
+string error
+---
+#Feedback
+

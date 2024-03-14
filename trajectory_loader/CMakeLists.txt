@@ -25,6 +25,7 @@ find_package(moveit_ros_planning_interface REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "action/TrajectoryLoaderAction.action"
+  "action/MoveToAction.action"
 )
 
 add_executable(trajectory_loader_server src/trajectory_loader_server.cpp)
@@ -35,8 +36,6 @@ ament_target_dependencies(trajectory_loader_server
   rclcpp_action
   std_msgs
   trajectory_msgs
-  control_msgs
-  std_srvs
   moveit_msgs
   sensor_msgs
   moveit_ros_planning_interface
@@ -45,7 +44,23 @@ ament_target_dependencies(trajectory_loader_server
 rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
 target_link_libraries(trajectory_loader_server "${cpp_typesupport_target}")
 
-add_executable(trajectory_loader_test src/test.cpp)
+add_executable(move_to_server src/move_to_server.cpp)
+ament_target_dependencies(move_to_server
+  rclcpp
+  rclcpp_components
+  rosidl_default_generators
+  rclcpp_action
+  std_msgs
+  trajectory_msgs
+  moveit_msgs
+  sensor_msgs
+  moveit_ros_planning_interface
+  cnr_param
+)
+rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
+target_link_libraries(move_to_server "${cpp_typesupport_target}")
+
+add_executable(trajectory_loader_test src/trajectory_loader_test.cpp)
 ament_target_dependencies(trajectory_loader_test
     rclcpp
     rclcpp_components
@@ -53,8 +68,6 @@ ament_target_dependencies(trajectory_loader_test
     rclcpp_action
     std_msgs
     trajectory_msgs
-    control_msgs
-    std_srvs
     moveit_msgs
     sensor_msgs
     moveit_ros_planning_interface
@@ -65,6 +78,7 @@ target_link_libraries(trajectory_loader_test "${cpp_typesupport_target}")
 
 install(TARGETS
   trajectory_loader_server
+  move_to_server
   trajectory_loader_test
   DESTINATION lib/${PROJECT_NAME})
 

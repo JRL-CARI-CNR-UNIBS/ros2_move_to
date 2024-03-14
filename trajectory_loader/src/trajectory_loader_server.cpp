@@ -1,26 +1,19 @@
 #include "rclcpp/rclcpp.hpp"
+#include <rclcpp/parameter_client.hpp>
 #include "rclcpp_action/rclcpp_action.hpp"
 #include "rclcpp_components/register_node_macro.hpp"
-#include "control_msgs/action/follow_joint_trajectory.hpp"
-#include "trajectory_msgs/msg/joint_trajectory.hpp"
-#include "std_srvs/srv/trigger.hpp"
-#include "moveit_msgs/action/execute_trajectory.hpp"
-#include "trajectory_loader/action/trajectory_loader_action.hpp"
-#include "moveit/move_group_interface/move_group_interface.h"
-#include "moveit/trajectory_processing/iterative_spline_parameterization.h"
-#include "moveit/trajectory_processing/time_optimal_trajectory_generation.h"
-#include "cnr_param/cnr_param.h"
-#include "builtin_interfaces/msg/duration.hpp"
-#include "std_srvs/srv/empty.hpp"
+
 #include "std_msgs/msg/string.hpp"
+#include "builtin_interfaces/msg/duration.hpp"
 #include "moveit_msgs/msg/display_trajectory.hpp"
-#include <rclcpp/parameter_client.hpp>
+#include "trajectory_msgs/msg/joint_trajectory.hpp"
+
+#include "cnr_param/cnr_param.h"
+#include "trajectory_loader/action/trajectory_loader_action.hpp"
 
 #include <moveit/move_group_interface/move_group_interface.h>
-#include <moveit/planning_scene_interface/planning_scene_interface.h>
-#include <moveit/planning_scene/planning_scene.h>
-#include <moveit/planning_scene_monitor/planning_scene_monitor.h>
-#include <moveit/robot_model_loader/robot_model_loader.h>
+#include "moveit/trajectory_processing/iterative_spline_parameterization.h"
+#include "moveit/trajectory_processing/time_optimal_trajectory_generation.h"
 
 using namespace std::chrono_literals;
 
@@ -80,16 +73,12 @@ public:
   }
 
 private:
-  trajectory_msgs::msg::JointTrajectory trajectory_;
   rclcpp::Publisher<moveit_msgs::msg::DisplayTrajectory>::SharedPtr display_trj_pub_;
-  rclcpp_action::Client<moveit_msgs::action::ExecuteTrajectory>::SharedPtr client_ptr_;
   rclcpp_action::Server<trajectory_loader::action::TrajectoryLoaderAction>::SharedPtr server_ptr_;
   std::shared_ptr<rclcpp_action::ServerGoalHandle<trajectory_loader::action::TrajectoryLoaderAction>> goal_handle_;
 
   void load_trajectory()
   {
-    this->client_ptr_ = rclcpp_action::create_client<moveit_msgs::action::ExecuteTrajectory>(this,"/execute_trajectory");
-
     auto result = std::make_shared<trajectory_loader::action::TrajectoryLoaderAction::Result>();
     auto feedback = std::make_shared<trajectory_loader::action::TrajectoryLoaderAction::Feedback>();
 
@@ -102,17 +91,6 @@ private:
     const unsigned int repetitions = goal->repetitions;
     const std::vector<std::string> list_of_trjs = goal->trj_names;
 
-    if(not simulate)
-    {
-      if (not client_ptr_->wait_for_action_server(std::chrono::duration<double>(10.0)))
-      {
-        RCLCPP_ERROR(this->get_logger(), "No /execute_trajectory action server found!");
-        result->error = "No /execute_trajectory action server found!";
-        goal_handle_->abort(result);
-        return;
-      }
-    }
-
     bool scale;
     bool success;
     moveit::planning_interface::MoveGroupInterface::Plan plan;
@@ -123,13 +101,15 @@ private:
 
     for(unsigned irep = 0; irep<repetitions; irep++)
     {
-      if(goal_handle_->is_canceling())
-        return;
-
       for(const std::string& trj_name : list_of_trjs)
       {
         if(goal_handle_->is_canceling())
+        {
+          RCLCPP_INFO(this->get_logger(),"Goal canceled");
+          result->error="canceled";
+          goal_handle_->canceled(result);
           return;
+        }
 
         scale = rescale;
         robot_current_state = *move_group.getCurrentState();
@@ -160,7 +140,12 @@ private:
         }
 
         if(goal_handle_->is_canceling())
+        {
+          RCLCPP_INFO(this->get_logger(),"Goal canceled");
+          result->error="canceled";
+          goal_handle_->canceled(result);
           return;
+        }
 
         std::vector<double> initial_trj_position = trj_from_param.points.begin()->positions;
 
@@ -189,7 +174,12 @@ private:
         }
 
         if(goal_handle_->is_canceling())
+        {
+          RCLCPP_INFO(this->get_logger(),"Goal canceled");
+          result->error="canceled";
+          goal_handle_->canceled(result);
           return;
+        }
 
         //Go to the first configuration of the trajectory
         std::map<std::string, double> target_configuration;
@@ -201,15 +191,6 @@ private:
           target_configuration.insert(p);
         }
         move_group.setJointValueTarget(target_configuration);
-
-        std::vector<double> current_position;
-        move_group.startStateMonitor();
-        auto current_state = *move_group.getCurrentState();
-        for(const std::string& n:trj_from_param.joint_names)
-        {
-          double d = *current_state.getJointPositions(n);
-          current_position.push_back(d);
-        }
 
         robot_trajectory::RobotTrajectory trajectory(move_group.getRobotModel(), group_name);
         success = (move_group.plan(plan) == moveit::core::MoveItErrorCode::SUCCESS);
@@ -229,9 +210,13 @@ private:
         RCLCPP_INFO_STREAM(this->get_logger(),"Approach trj\n"<<trajectory);
 
         if(goal_handle_->is_canceling())
+        {
+          RCLCPP_INFO(this->get_logger(),"Goal canceled");
+          result->error="canceled";
+          goal_handle_->canceled(result);
           return;
+        }
 
-        moveit_msgs::action::ExecuteTrajectory::Goal goal;
         if(not simulate)
         {
           // Execute approach trajectory
@@ -248,7 +233,12 @@ private:
           }
 
           if(goal_handle_->is_canceling())
+          {
+            RCLCPP_INFO(this->get_logger(),"Goal canceled");
+            result->error="canceled";
+            goal_handle_->canceled(result);
             return;
+          }
 
           if(not is_single_point)
           {
@@ -266,7 +256,12 @@ private:
             }
 
             if(goal_handle_->is_canceling())
+            {
+              RCLCPP_INFO(this->get_logger(),"Goal canceled");
+              result->error="canceled";
+              goal_handle_->canceled(result);
               return;
+            }
           }
         }
         else
@@ -280,8 +275,12 @@ private:
                   rclcpp::Duration(approach_trj.joint_trajectory.points.back().time_from_start).seconds()));
 
           if(goal_handle_->is_canceling())
+          {
+            RCLCPP_INFO(this->get_logger(),"Goal canceled");
+            result->error="canceled";
+            goal_handle_->canceled(result);
             return;
-
+          }
           display_trj_msg.trajectory.at(0)=trj;
           display_trj_pub_->publish(display_trj_msg);
           this->get_clock()->sleep_for(
@@ -485,9 +484,6 @@ private:
   {
     RCLCPP_INFO(this->get_logger(), "Received request to cancel goal");
 
-    auto cancel_future = this->client_ptr_->async_cancel_all_goals();
-    cancel_future.get();
-
     (void)goal_handle;
     return rclcpp_action::CancelResponse::ACCEPT;
   }
@@ -496,6 +492,7 @@ private:
                        <trajectory_loader::action::TrajectoryLoaderAction>> goal_handle)
   {
     goal_handle_ = goal_handle;
+    goal_handle_->execute();
     std::thread(std::bind(&TrajectoryLoaderServer::load_trajectory, this)).detach();
   }
 };
