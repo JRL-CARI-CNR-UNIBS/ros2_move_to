@@ -492,7 +492,7 @@ private:
                        <trajectory_loader::action::TrajectoryLoaderAction>> goal_handle)
   {
     goal_handle_ = goal_handle;
-    goal_handle_->execute();
+//    goal_handle_->execute();
     std::thread(std::bind(&TrajectoryLoaderServer::load_trajectory, this)).detach();
   }
 };

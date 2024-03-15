@@ -82,10 +82,28 @@ ament_target_dependencies(trajectory_loader_test
 rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
 target_link_libraries(trajectory_loader_test "${cpp_typesupport_target}")
 
+add_executable(move_to_test src/move_to_test.cpp)
+ament_target_dependencies(move_to_test
+    rclcpp
+    rclcpp_components
+    rosidl_default_generators
+    rclcpp_action
+    std_msgs
+    trajectory_msgs
+    moveit_msgs
+    sensor_msgs
+    moveit_ros_planning_interface
+    cnr_param
+    tf2_ros
+)
+rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
+target_link_libraries(move_to_test "${cpp_typesupport_target}")
+
 install(TARGETS
   trajectory_loader_server
   move_to_server
   trajectory_loader_test
+  move_to_test
   DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY launch config
