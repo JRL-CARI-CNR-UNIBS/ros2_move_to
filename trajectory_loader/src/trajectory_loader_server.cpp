@@ -23,7 +23,7 @@ public:
   explicit TrajectoryLoaderServer(const rclcpp::NodeOptions & node_options = rclcpp::NodeOptions().automatically_declare_parameters_from_overrides(true))
     : Node("trajectory_loader_server", node_options)
   {
-    this->server_ptr_ = rclcpp_action::create_server<trajectory_loader::action::TrajectoryLoaderAction>(
+    this->action_server_ = rclcpp_action::create_server<trajectory_loader::action::TrajectoryLoaderAction>(
           this,"/trajectory_loader",
           std::bind(&TrajectoryLoaderServer::handle_goal, this, std::placeholders::_1, std::placeholders::_2),
           std::bind(&TrajectoryLoaderServer::handle_cancel, this, std::placeholders::_1),
@@ -74,7 +74,7 @@ public:
 
 private:
   rclcpp::Publisher<moveit_msgs::msg::DisplayTrajectory>::SharedPtr display_trj_pub_;
-  rclcpp_action::Server<trajectory_loader::action::TrajectoryLoaderAction>::SharedPtr server_ptr_;
+  rclcpp_action::Server<trajectory_loader::action::TrajectoryLoaderAction>::SharedPtr action_server_;
   std::shared_ptr<rclcpp_action::ServerGoalHandle<trajectory_loader::action::TrajectoryLoaderAction>> goal_handle_;
 
   void load_trajectory()
@@ -198,8 +198,8 @@ private:
         {
           RCLCPP_ERROR(this->get_logger(),"Planning to initial trj position failed!");
           result->error = "planning failed!";
-          return;
           goal_handle_->abort(result);
+          return;
         }
 
         trajectory.setRobotTrajectoryMsg(robot_current_state, plan.trajectory_.joint_trajectory);

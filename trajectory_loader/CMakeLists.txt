@@ -22,10 +22,14 @@ find_package(sensor_msgs REQUIRED)
 find_package(moveit_msgs REQUIRED)
 find_package(action_msgs REQUIRED)
 find_package(moveit_ros_planning_interface REQUIRED)
+find_package(ik_solver_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "action/TrajectoryLoaderAction.action"
   "action/MoveToAction.action"
+  DEPENDENCIES geometry_msgs
+
 )
 
 add_executable(trajectory_loader_server src/trajectory_loader_server.cpp)
@@ -56,6 +60,8 @@ ament_target_dependencies(move_to_server
   sensor_msgs
   moveit_ros_planning_interface
   cnr_param
+  ik_solver_msgs
+  geometry_msgs
 )
 rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
 target_link_libraries(move_to_server "${cpp_typesupport_target}")

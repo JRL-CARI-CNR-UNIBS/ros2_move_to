@@ -1,6 +1,6 @@
 #Goal
 string group_name
-string location_name
+geometry_msgs/PoseStamped pose
 bool simulation
 ---
 #Result

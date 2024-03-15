@@ -7,6 +7,10 @@
 #include "builtin_interfaces/msg/duration.hpp"
 #include "moveit_msgs/msg/display_trajectory.hpp"
 #include "trajectory_msgs/msg/joint_trajectory.hpp"
+#include "ik_solver_msgs/srv/get_ik.hpp"
+#include "ik_solver_msgs/msg/ik_solution.hpp"
+#include "ik_solver_msgs/msg/configuration.hpp"
+#include "geometry_msgs/msg/pose_stamped.hpp"
 
 #include "cnr_param/cnr_param.h"
 #include "trajectory_loader/action/move_to_action.hpp"
@@ -23,11 +27,20 @@ public:
   explicit MoveToServer(const rclcpp::NodeOptions & node_options = rclcpp::NodeOptions().automatically_declare_parameters_from_overrides(true))
     : Node("move_to_server", node_options)
   {
-    this->server_ptr_ = rclcpp_action::create_server<trajectory_loader::action::MoveToAction>(
+    this->action_server_ = rclcpp_action::create_server<trajectory_loader::action::MoveToAction>(
           this,"/move_to",
           std::bind(&MoveToServer::handle_goal, this, std::placeholders::_1, std::placeholders::_2),
           std::bind(&MoveToServer::handle_cancel, this, std::placeholders::_1),
           std::bind(&MoveToServer::handle_accepted, this, std::placeholders::_1));
+
+    this->ik_client_ = this->create_client<ik_solver_msgs::srv::GetIk>("/get_ik");
+
+    while(!this->ik_client_->wait_for_service(1s)) {
+      if (!rclcpp::ok()) {
+        RCLCPP_ERROR(this->get_logger(), "Interrupted while waiting for the service. Exiting.");
+      }
+      RCLCPP_INFO(this->get_logger(), "service not available, waiting again...");
+    }
 
     this->display_trj_pub_ = this->create_publisher<moveit_msgs::msg::DisplayTrajectory>("/simulated_trajectory",1);
 
@@ -73,20 +86,65 @@ public:
   }
 
 private:
+  rclcpp::Client<ik_solver_msgs::srv::GetIk>::SharedPtr ik_client_;
   rclcpp::Publisher<moveit_msgs::msg::DisplayTrajectory>::SharedPtr display_trj_pub_;
-  rclcpp_action::Server<trajectory_loader::action::MoveToAction>::SharedPtr server_ptr_;
+  rclcpp_action::Server<trajectory_loader::action::MoveToAction>::SharedPtr action_server_;
   std::shared_ptr<rclcpp_action::ServerGoalHandle<trajectory_loader::action::MoveToAction>> goal_handle_;
 
   struct Ik{
-    std::vector<double> configuration;
     std::vector<std::string> joint_names;
+    std::vector<ik_solver_msgs::msg::Configuration> configurations;
   };
 
-  Ik getIk(const std::string& location_name)
+  bool getIk(const geometry_msgs::msg::PoseStamped& pose, Ik& ik)
   {
-    (void)location_name;
-    Ik ik;
-    return ik;
+    auto req = std::make_shared<ik_solver_msgs::srv::GetIk::Request>();
+    ik_solver_msgs::msg::IkTarget target;
+    target.pose = pose;
+    req->target = target;
+
+    auto result = this->ik_client_->async_send_request(req);
+    if(rclcpp::spin_until_future_complete(this->shared_from_this(), result) ==
+       rclcpp::FutureReturnCode::SUCCESS)
+    {
+      ik.joint_names = result.get()->joint_names;
+      ik.configurations = result.get()->solution.configurations;
+    }
+    else
+    {
+      RCLCPP_ERROR(this->get_logger(), "Ik service failed");
+      return false;
+    }
+    return true;
+  }
+
+  bool chooseIk(const Ik& ik, const std::vector<double>& current_configuration, std::vector<double>& best_ik)
+  {
+    Eigen::VectorXd best_conf;
+    Eigen::VectorXd current_conf = Eigen::VectorXd::Map(
+          current_configuration.data(), static_cast<Eigen::Index>(current_configuration.size()));
+
+    double distance;
+    double min_distance = std::numeric_limits<double>::infinity();
+
+    for(size_t i=0;i<ik.configurations.size();i++)
+    {
+      Eigen::VectorXd conf = Eigen::VectorXd::Map(
+            ik.configurations[i].configuration.data(),
+            static_cast<Eigen::Index>(ik.configurations[i].configuration.size()));
+
+      distance = (conf-current_conf).norm();
+      if(distance<min_distance)
+      {
+        best_conf = conf;
+        min_distance = distance;
+      }
+    }
+
+    best_ik.resize(best_conf.size());
+    Eigen::Map<Eigen::VectorXd>(best_ik.data(), best_ik.size()) = best_conf;
+
+    return true;
   }
 
   void load_trajectory()
@@ -99,7 +157,7 @@ private:
 
     const bool simulate = goal->simulation;
     const std::string group_name = goal->group_name;
-    const std::string location_name = goal->location_name;
+    const geometry_msgs::msg::PoseStamped pose = goal->pose;
 
     bool success;
     moveit::planning_interface::MoveGroupInterface::Plan plan;
@@ -116,14 +174,39 @@ private:
       return;
     }
 
-    Ik ik = this->getIk(location_name);
+    Ik ik;
+    if(not this->getIk(pose,ik))
+    {
+      RCLCPP_ERROR(this->get_logger(),"Ik not available");
+      result->error = "Ik not available";
+      goal_handle_->abort(result);
+      return;
+    }
+
+    if(goal_handle_->is_canceling())
+    {
+      RCLCPP_INFO(this->get_logger(),"Goal canceled");
+      result->error="canceled";
+      goal_handle_->canceled(result);
+      return;
+    }
+
+    std::vector<double> current_configuration;
+    for(const std::string& j:ik.joint_names)
+    {
+      double d = *robot_current_state.getJointPositions(j);
+      current_configuration.push_back(d);
+    }
+
+    std::vector<double> best_ik;
+    this->chooseIk(ik,current_configuration,best_ik);
 
     std::map<std::string, double> goal_map;
     for(size_t j=0;j<ik.joint_names.size();j++)
     {
       std::pair<std::string, double> p;
       p.first = ik.joint_names[j];
-      p.second = ik.configuration[j];
+      p.second = best_ik[j];
       goal_map.insert(p);
     }
     move_group.setJointValueTarget(goal_map);
@@ -134,8 +217,8 @@ private:
     {
       RCLCPP_ERROR(this->get_logger(),"Planning to location failed!");
       result->error = "planning failed!";
-      return;
       goal_handle_->abort(result);
+      return;
     }
 
     moveit_msgs::msg::RobotTrajectory trj;
@@ -144,7 +227,7 @@ private:
     trj_processing.computeTimeStamps(trajectory);
     trajectory.getRobotTrajectoryMsg(trj);
 
-    RCLCPP_INFO_STREAM(this->get_logger(),"Trajectory to location "<<location_name<<"\n"<<trajectory);
+    RCLCPP_INFO_STREAM(this->get_logger(),"Trajectory "<<trajectory);
 
     if(goal_handle_->is_canceling())
     {
@@ -156,8 +239,6 @@ private:
 
     if(not simulate)
     {
-      RCLCPP_INFO_STREAM(this->get_logger(),"Move to location "<<location_name);
-
       moveit::core::MoveItErrorCode moveit_error_code = move_group.execute(trj);
       if(moveit_error_code != moveit::core::MoveItErrorCode::SUCCESS)
       {
