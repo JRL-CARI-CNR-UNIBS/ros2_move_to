@@ -2,8 +2,9 @@
 string group_name
 string[] trj_names
 int32 repetitions
-bool rescale
+bool recompute_time_law
 bool simulation
+float32 scaling #velocity scaling, (0,1]
 ---
 #Result
 bool ok

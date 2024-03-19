@@ -37,7 +37,7 @@ public:
     std::vector<std::string> ik_services;
     while(ik_services.empty())
     {
-      RCLCPP_INFO(this->get_logger(),"Waiting for a /get_ik service");
+      RCLCPP_INFO(this->get_logger(),"Waiting for /get_ik services");
       this->getAvailableIkService(ik_services);
       this->get_clock()->sleep_for(1s);
     }
@@ -129,6 +129,7 @@ private:
         if(type == target_type)
         {
           ik_service.push_back(service.first);
+
         }
       }
     }
@@ -201,15 +202,25 @@ private:
     result->ok = false;
     const auto goal = goal_handle_->get_goal();
 
-    const bool simulate = goal->simulation;
-    const std::string group_name = goal->group_name;
-    const geometry_msgs::msg::PoseStamped pose = goal->pose;
-    const std::string ik_service = goal->ik_service_name;
+    std::string summary = "Request:\n";
+    summary = summary+" - group_name: "+goal->group_name+"\n";
+    summary = summary+" - ik_service_name: "+goal->ik_service_name+"\n";
+    summary = summary+" - scaling: "+std::to_string(goal->scaling)+"\n";
+    summary = summary+" - simulation: "+(goal->simulation? "true": "false")+"\n";
+    summary = summary+" - pose:\n"+geometry_msgs::msg::to_yaml(goal->pose)+"\n";
 
+    RCLCPP_WARN_STREAM(this->get_logger(),summary);
 
-    if (this->ik_client_map_.find(ik_service) == this->ik_client_map_.end())
+    if (this->ik_client_map_.find(goal->ik_service_name) == this->ik_client_map_.end())
     {
       RCLCPP_ERROR(this->get_logger(),"Required ik service not available");
+
+      std::vector<std::string> s;
+      for(const auto& p:this->ik_client_map_)
+        s.push_back(" - "+p.first+"\n");
+
+      RCLCPP_ERROR_STREAM(this->get_logger(),"List of /get_ik services detected:\n");
+
       result->error = "Required ik service not available";
       goal_handle_->abort(result);
       return;
@@ -217,7 +228,11 @@ private:
 
     bool success;
     moveit::planning_interface::MoveGroupInterface::Plan plan;
-    moveit::planning_interface::MoveGroupInterface move_group(this->shared_from_this(),group_name);
+    moveit::planning_interface::MoveGroupInterface move_group(this->shared_from_this(),goal->group_name);
+
+    // Set velocity scaling factor
+    move_group.setMaxVelocityScalingFactor(goal->scaling);
+
     move_group.startStateMonitor();
 
     if(goal_handle_->is_canceling())
@@ -229,7 +244,7 @@ private:
     }
 
     Ik ik;
-    if(not this->getIk(ik_service,pose,ik))
+    if(not this->getIk(goal->ik_service_name,goal->pose,ik))
     {
       RCLCPP_ERROR(this->get_logger(),"Ik not available");
       result->error = "Ik not available";
@@ -284,7 +299,7 @@ private:
     }
     move_group.setJointValueTarget(goal_map);
 
-    robot_trajectory::RobotTrajectory trajectory(move_group.getRobotModel(), group_name);
+    robot_trajectory::RobotTrajectory trajectory(move_group.getRobotModel(), goal->group_name);
     success = (move_group.plan(plan) == moveit::core::MoveItErrorCode::SUCCESS);
     if(not success)
     {
@@ -310,7 +325,7 @@ private:
       return;
     }
 
-    if(not simulate)
+    if(not goal->simulation)
     {
       moveit::core::MoveItErrorCode moveit_error_code = move_group.execute(trj);
       if(moveit_error_code != moveit::core::MoveItErrorCode::SUCCESS)
