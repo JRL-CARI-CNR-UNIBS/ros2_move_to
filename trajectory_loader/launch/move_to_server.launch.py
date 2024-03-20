@@ -9,7 +9,6 @@ from launch_ros.substitutions import FindPackageShare
 from moveit_configs_utils import MoveItConfigsBuilder
 
 def generate_launch_description():
-  
   return LaunchDescription([
     ExecuteProcess(
         cmd = [
@@ -23,10 +22,10 @@ def generate_launch_description():
         ],
         shell=False
       ),
-    
+
     Node(
       package="trajectory_loader",
-      executable="trajectory_loader_server",
+      executable="move_to_server",
       output="screen",
       namespace="trajectory_loader",
       # prefix=['gdb -ex=r --args'],

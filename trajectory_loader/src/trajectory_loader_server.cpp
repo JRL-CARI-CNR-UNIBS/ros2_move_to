@@ -211,6 +211,7 @@ private:
           p.second = initial_trj_position[j];
           target_configuration.insert(p);
         }
+        move_group.setStartStateToCurrentState();
         move_group.setJointValueTarget(target_configuration);
 
         robot_trajectory::RobotTrajectory trajectory(move_group.getRobotModel(), goal->group_name);
@@ -268,7 +269,7 @@ private:
             // Execute the trajectory
             RCLCPP_INFO(this->get_logger(), "Execute trajectory %s", trj_name.c_str());
 
-            // Set velocity scaling factor           
+            // Set velocity scaling factor
             move_group.setMaxVelocityScalingFactor(goal->scaling);
             moveit::core::MoveItErrorCode moveit_error_code = move_group.execute(trj);
             if(moveit_error_code != moveit::core::MoveItErrorCode::SUCCESS)
@@ -295,9 +296,8 @@ private:
           display_trj_msg.trajectory.push_back(approach_trj);
           display_trj_pub_->publish(display_trj_msg);
 
-          this->get_clock()->sleep_for(
-                std::chrono_literals::operator""s(
-                  rclcpp::Duration(approach_trj.joint_trajectory.points.back().time_from_start).seconds()));
+          rclcpp::sleep_for(std::chrono::nanoseconds(
+                              rclcpp::Duration(approach_trj.joint_trajectory.points.back().time_from_start).nanoseconds()));
 
           if(goal_handle_->is_canceling())
           {
@@ -308,9 +308,8 @@ private:
           }
           display_trj_msg.trajectory.at(0)=trj;
           display_trj_pub_->publish(display_trj_msg);
-          this->get_clock()->sleep_for(
-                std::chrono_literals::operator""s(
-                  rclcpp::Duration(trj.joint_trajectory.points.back().time_from_start).seconds()));
+          rclcpp::sleep_for(std::chrono::nanoseconds(
+                              rclcpp::Duration(trj.joint_trajectory.points.back().time_from_start).nanoseconds()));
         }
       }
     }
@@ -347,7 +346,7 @@ private:
     {
       std::string w;
       bool ok;
-      std::string ns = trj_name+"/"+params.at(i);
+      std::string ns = "/"+trj_name+"/"+params.at(i);
       switch(i)
       {
       case 0:
@@ -530,7 +529,10 @@ int main(int argc, char ** argv)
   node_options.automatically_declare_parameters_from_overrides(true);
   auto node = std::make_shared<TrajectoryLoaderServer>(node_options);
 
-  rclcpp::spin(node);
+  rclcpp::executors::MultiThreadedExecutor executor;
+  executor.add_node(node);
+  executor.spin();
+
   rclcpp::shutdown();
 
   return 0;

@@ -22,61 +22,79 @@ int main(int argc, char ** argv)
 
   auto goal = trajectory_loader::action::TrajectoryLoaderAction::Goal();
 
+  std::string ns = "/trj_loader_test/";
   std::string w;
   std::vector<std::string> trj;
-  if(cnr::param::has("trj_loader_test/trj_names",w))
+  if(cnr::param::has(ns+"trj_names",w))
   {
-    if(cnr::param::is_sequence("trj_loader_test/trj_names"))
-      cnr::param::get("trj_loader_test/trj_names",trj,w);
+    if(cnr::param::is_sequence(ns+"trj_names"))
+      cnr::param::get(ns+"trj_names",trj,w);
     else
     {
       RCLCPP_ERROR(node->get_logger(),"trj_names should be a vector");
       return 1;
     }
   }
+  else
+  {
+    RCLCPP_ERROR(node->get_logger(),"trj_names not defined");
+    RCLCPP_ERROR_STREAM(node->get_logger(),w);
+
+    return 1;
+  }
 
   std::string group_name;
-  if(cnr::param::has("trj_loader_test/group_name",w))
-    cnr::param::get("trj_loader_test/group_name",group_name,w);
+  if(cnr::param::has(ns+"group_name",w))
+    cnr::param::get(ns+"group_name",group_name,w);
   else
   {
     RCLCPP_ERROR(node->get_logger(),"group_name not defined");
+    RCLCPP_ERROR_STREAM(node->get_logger(),w);
+
     return 1;
   }
 
   int repetitions;
-  if(cnr::param::has("trj_loader_test/repetitions",w))
-    cnr::param::get("trj_loader_test/repetitions",repetitions,w);
+  if(cnr::param::has(ns+"repetitions",w))
+    cnr::param::get(ns+"repetitions",repetitions,w);
   else
   {
     RCLCPP_ERROR(node->get_logger(),"repetitions not defined");
+    RCLCPP_ERROR_STREAM(node->get_logger(),w);
+
     return 1;
   }
 
   bool recompute_time_law;
-  if(cnr::param::has("trj_loader_test/recompute_time_law",w))
-    cnr::param::get("trj_loader_test/recompute_time_law",recompute_time_law,w);
+  if(cnr::param::has(ns+"recompute_time_law",w))
+    cnr::param::get(ns+"recompute_time_law",recompute_time_law,w);
   else
   {
     RCLCPP_ERROR(node->get_logger(),"recompute_time_law not defined");
+    RCLCPP_ERROR_STREAM(node->get_logger(),w);
+
     return 1;
   }
 
   bool simulation;
-  if(cnr::param::has("trj_loader_test/simulation",w))
-    cnr::param::get("trj_loader_test/simulation",simulation,w);
+  if(cnr::param::has(ns+"simulation",w))
+    cnr::param::get(ns+"simulation",simulation,w);
   else
   {
     RCLCPP_ERROR(node->get_logger(),"simulation not defined");
+    RCLCPP_ERROR_STREAM(node->get_logger(),w);
+
     return 1;
   }
 
   double scaling;
-  if(cnr::param::has("trj_loader_test/scaling",w))
-    cnr::param::get("trj_loader_test/scaling",scaling,w);
+  if(cnr::param::has(ns+"scaling",w))
+    cnr::param::get(ns+"scaling",scaling,w);
   else
   {
     RCLCPP_ERROR(node->get_logger(),"scaling not defined");
+    RCLCPP_ERROR_STREAM(node->get_logger(),w);
+
     return 1;
   }
 

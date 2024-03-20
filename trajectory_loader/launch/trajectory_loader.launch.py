@@ -10,8 +10,7 @@ from moveit_configs_utils import MoveItConfigsBuilder
 
 def generate_launch_description():
 #  moveit_configs = MoveItConfigsBuilder("nj-220-27").to_moveit_configs()
-  
-  return LaunchDescription([
+ return LaunchDescription([
     ExecuteProcess(
         cmd = [
           FindExecutable(name="cnr_param_server"),
@@ -31,7 +30,7 @@ def generate_launch_description():
       output="screen",
       namespace="trajectory_loader",
       # prefix=['gdb -ex=r --args'],
-      ros_arguments=["--log-level", "info"],
+      ros_arguments=["--log-level", "warn"],
       parameters=[{"use_sim_time": True}]
     )
 ])

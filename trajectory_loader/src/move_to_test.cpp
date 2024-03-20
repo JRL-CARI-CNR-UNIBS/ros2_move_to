@@ -62,58 +62,71 @@ int main(int argc, char ** argv)
     RCLCPP_INFO(node->get_logger(), "waiting for action /move_to to appear...");
   }
 
+  std::string ns = "/move_to_test/";
   std:: string w;
   std::string group_name;
-  if(cnr::param::has("move_to_test/group_name",w))
-    cnr::param::get("move_to_test/group_name",group_name,w);
+  if(cnr::param::has(ns+"group_name",w))
+    cnr::param::get(ns+"group_name",group_name,w);
   else
   {
     RCLCPP_ERROR(node->get_logger(),"group_name not defined");
+    RCLCPP_ERROR_STREAM(node->get_logger(),w);
+
     return 1;
   }
 
   std::string tool_frame;
-  if(cnr::param::has("move_to_test/tool_frame",w))
-    cnr::param::get("move_to_test/tool_frame",group_name,w);
+  if(cnr::param::has(ns+"tool_frame",w))
+    cnr::param::get(ns+"tool_frame",tool_frame,w);
   else
   {
-    RCLCPP_ERROR(node->get_logger(),"group_name not defined");
+    RCLCPP_ERROR(node->get_logger(),"tool_frame not defined");
+    RCLCPP_ERROR_STREAM(node->get_logger(),w);
+
     return 1;
   }
 
   std::string ik_service_name;
-  if(cnr::param::has("move_to_test/ik_service_name",w))
-    cnr::param::get("move_to_test/ik_service_name",ik_service_name,w);
+  if(cnr::param::has(ns+"ik_service_name",w))
+    cnr::param::get(ns+"ik_service_name",ik_service_name,w);
   else
   {
     RCLCPP_ERROR(node->get_logger(),"ik_service_name not defined");
+    RCLCPP_ERROR_STREAM(node->get_logger(),w);
+
     return 1;
   }
 
   bool simulation;
-  if(cnr::param::has("move_to_test/simulation",w))
-    cnr::param::get("move_to_test/simulation",simulation,w);
+  if(cnr::param::has(ns+"simulation",w))
+    cnr::param::get(ns+"simulation",simulation,w);
   else
   {
     RCLCPP_ERROR(node->get_logger(),"simulation not defined");
+    RCLCPP_ERROR_STREAM(node->get_logger(),w);
+
     return 1;
   }
 
   double scaling;
-  if(cnr::param::has("move_to_test/scaling",w))
-    cnr::param::get("move_to_test/scaling",scaling,w);
+  if(cnr::param::has(ns+"scaling",w))
+    cnr::param::get(ns+"scaling",scaling,w);
   else
   {
     RCLCPP_ERROR(node->get_logger(),"scaling not defined");
+    RCLCPP_ERROR_STREAM(node->get_logger(),w);
+
     return 1;
   }
 
   double z_shift;
-  if(cnr::param::has("move_to_test/z_shift",w))
-    cnr::param::get("move_to_test/z_shift",z_shift,w);
+  if(cnr::param::has(ns+"z_shift",w))
+    cnr::param::get(ns+"z_shift",z_shift,w);
   else
   {
     RCLCPP_ERROR(node->get_logger(),"z_shift not defined");
+    RCLCPP_ERROR_STREAM(node->get_logger(),w);
+
     return 1;
   }
 

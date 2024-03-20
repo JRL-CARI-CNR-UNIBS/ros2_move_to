@@ -39,7 +39,8 @@ public:
     {
       RCLCPP_INFO(this->get_logger(),"Waiting for /get_ik services");
       this->getAvailableIkService(ik_services);
-      this->get_clock()->sleep_for(1s);
+      rclcpp::sleep_for(std::chrono::milliseconds(100));
+      //      this->get_clock()->sleep_for(std::chrono::nanoseconds((int)1e8)); //0.1s
     }
 
     RCLCPP_WARN_STREAM(this->get_logger(),"Available /get_ik services:");
@@ -149,7 +150,7 @@ private:
     while(not this->ik_response_received_)
     {
       RCLCPP_INFO(this->get_logger(), "Waiting for /get_ik server response");
-      this->get_clock()->sleep_for(0.1s);
+      rclcpp::sleep_for(std::chrono::milliseconds(100));
     }
 
     if(this->ik_response_ != nullptr)
@@ -297,6 +298,7 @@ private:
       p.second = best_ik[j];
       goal_map.insert(p);
     }
+    move_group.setStartStateToCurrentState();
     move_group.setJointValueTarget(goal_map);
 
     robot_trajectory::RobotTrajectory trajectory(move_group.getRobotModel(), goal->group_name);
@@ -351,9 +353,8 @@ private:
       display_trj_msg.trajectory.push_back(trj);
       display_trj_pub_->publish(display_trj_msg);
 
-      this->get_clock()->sleep_for(
-            std::chrono_literals::operator""s(
-              rclcpp::Duration(trj.joint_trajectory.points.back().time_from_start).seconds()));
+      rclcpp::sleep_for(std::chrono::nanoseconds(
+                          rclcpp::Duration(trj.joint_trajectory.points.back().time_from_start).nanoseconds()));
     }
 
     result->ok=true;
