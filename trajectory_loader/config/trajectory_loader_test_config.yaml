@@ -1,7 +1,7 @@
 trj_loader_test: 
   trj_names: ["trj_kuka"]
   group_name: "kuka"
-  repetitions: 2
+  repetitions: 5
   recompute_time_law: false
   scaling: 0.1
   simulation: false
