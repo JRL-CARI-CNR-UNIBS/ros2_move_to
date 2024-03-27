@@ -242,8 +242,6 @@ private:
           // Execute approach trajectory
           RCLCPP_INFO(this->get_logger(),"Move %s to initial position", goal->group_name.c_str());
 
-          // Set velocity scaling factor
-          move_group.setMaxVelocityScalingFactor(goal->scaling);
           moveit::core::MoveItErrorCode moveit_error_code = move_group.execute(approach_trj);
           if(moveit_error_code != moveit::core::MoveItErrorCode::SUCCESS)
           {
