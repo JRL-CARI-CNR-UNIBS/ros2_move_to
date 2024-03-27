@@ -1,6 +1,6 @@
 trj_loader_test: 
-  trj_names: ["trj_test"]
-  group_name: "manipulator"
+  trj_names: ["trj_kuka"]
+  group_name: "kuka"
   repetitions: 5
   recompute_time_law: false
   simulation: false

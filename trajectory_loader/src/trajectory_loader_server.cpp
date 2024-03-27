@@ -262,6 +262,8 @@ private:
             return;
           }
 
+          rclcpp::sleep_for(std::chrono::milliseconds(50));
+
           if(not is_single_point)
           {
             // Execute the trajectory
@@ -284,6 +286,8 @@ private:
               goal_handle_->canceled(result);
               return;
             }
+
+            rclcpp::sleep_for(std::chrono::milliseconds(50));
           }
         }
         else
