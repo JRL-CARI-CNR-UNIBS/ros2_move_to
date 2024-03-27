@@ -3,7 +3,6 @@ string group_name
 string ik_service_name
 geometry_msgs/PoseStamped pose
 bool simulation
-float32 scaling #velocity scaling, (0,1]
 ---
 #Result
 bool ok

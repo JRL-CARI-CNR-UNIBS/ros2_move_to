@@ -31,6 +31,6 @@ def generate_launch_description():
       namespace="trajectory_loader",
       # prefix=['gdb -ex=r --args'],
       ros_arguments=["--log-level", "warn"],
-      parameters=[{"use_sim_time": True}]
+      parameters=[{"use_sim_time": False}]
     )
 ])

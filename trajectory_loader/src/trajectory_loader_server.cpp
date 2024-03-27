@@ -98,7 +98,6 @@ private:
     summary = summary+" - group_name: "+goal->group_name+"\n";
     summary = summary+" - repetitions: "+std::to_string(goal->repetitions)+"\n";
     summary = summary+" - recompute_time_law: "+(goal->recompute_time_law? "true": "false")+"\n";
-    summary = summary+" - scaling: "+std::to_string(goal->scaling)+"\n";
     summary = summary+" - simulation: "+(goal->simulation? "true": "false")+"\n";
 
     RCLCPP_WARN_STREAM(this->get_logger(),summary);
@@ -117,11 +116,10 @@ private:
     moveit::planning_interface::MoveGroupInterface move_group(this->shared_from_this(),goal->group_name);
 
     move_group.startStateMonitor();
-    moveit::core::RobotState robot_current_state = *move_group.getCurrentState();
+    moveit::core::RobotState robot_current_state = *move_group.getCurrentState(10);
 
     for(int irep = 0; irep<goal->repetitions; irep++)
     {
-      move_group.setMaxVelocityScalingFactor(goal->scaling);
       for(const std::string& trj_name : goal->trj_names)
       {
         if(goal_handle_->is_canceling())
@@ -133,7 +131,7 @@ private:
         }
 
         recompute_time_law = goal->recompute_time_law;
-        robot_current_state = *move_group.getCurrentState();
+        robot_current_state = *move_group.getCurrentState(10);
 
         feedback->current_repetition = irep;
         feedback->trj_in_execution = trj_name;
@@ -269,8 +267,6 @@ private:
             // Execute the trajectory
             RCLCPP_INFO(this->get_logger(), "Execute trajectory %s", trj_name.c_str());
 
-            // Set velocity scaling factor
-            move_group.setMaxVelocityScalingFactor(goal->scaling);
             moveit::core::MoveItErrorCode moveit_error_code = move_group.execute(trj);
             if(moveit_error_code != moveit::core::MoveItErrorCode::SUCCESS)
             {

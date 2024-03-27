@@ -35,12 +35,12 @@ public:
 
     // Subscribe to the available /get_ik services
     std::vector<std::string> ik_services;
+    rclcpp::Rate rate(100);
     while(ik_services.empty())
     {
       RCLCPP_INFO(this->get_logger(),"Waiting for /get_ik services");
       this->getAvailableIkService(ik_services);
-      rclcpp::sleep_for(std::chrono::milliseconds(100));
-      //      this->get_clock()->sleep_for(std::chrono::nanoseconds((int)1e8)); //0.1s
+      rate.sleep();
     }
 
     RCLCPP_WARN_STREAM(this->get_logger(),"Available /get_ik services:");
@@ -147,10 +147,11 @@ private:
     this->ik_response_received_ = false;
     auto result = this->ik_client_map_.at(ik_service)->async_send_request(req, std::bind(&MoveToServer::ik_response_callback,
                                                                                          this, std::placeholders::_1));
+    rclcpp::Rate rate(100);
     while(not this->ik_response_received_)
     {
       RCLCPP_INFO(this->get_logger(), "Waiting for /get_ik server response");
-      rclcpp::sleep_for(std::chrono::milliseconds(100));
+      rate.sleep();
     }
 
     if(this->ik_response_ != nullptr)
@@ -206,7 +207,6 @@ private:
     std::string summary = "Request:\n";
     summary = summary+" - group_name: "+goal->group_name+"\n";
     summary = summary+" - ik_service_name: "+goal->ik_service_name+"\n";
-    summary = summary+" - scaling: "+std::to_string(goal->scaling)+"\n";
     summary = summary+" - simulation: "+(goal->simulation? "true": "false")+"\n";
     summary = summary+" - pose:\n"+geometry_msgs::msg::to_yaml(goal->pose)+"\n";
 
@@ -230,9 +230,6 @@ private:
     bool success;
     moveit::planning_interface::MoveGroupInterface::Plan plan;
     moveit::planning_interface::MoveGroupInterface move_group(this->shared_from_this(),goal->group_name);
-
-    // Set velocity scaling factor
-    move_group.setMaxVelocityScalingFactor(goal->scaling);
 
     move_group.startStateMonitor();
 

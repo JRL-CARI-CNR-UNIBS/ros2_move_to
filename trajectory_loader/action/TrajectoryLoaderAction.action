@@ -4,7 +4,6 @@ string[] trj_names
 int32 repetitions
 bool recompute_time_law
 bool simulation
-float32 scaling #velocity scaling, (0,1]
 ---
 #Result
 bool ok

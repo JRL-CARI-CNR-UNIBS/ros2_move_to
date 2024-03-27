@@ -87,23 +87,10 @@ int main(int argc, char ** argv)
     return 1;
   }
 
-  double scaling;
-  if(cnr::param::has(ns+"scaling",w))
-    cnr::param::get(ns+"scaling",scaling,w);
-  else
-  {
-    RCLCPP_ERROR(node->get_logger(),"scaling not defined");
-    RCLCPP_ERROR_STREAM(node->get_logger(),w);
-
-    return 1;
-  }
-
   goal.trj_names = trj;
   goal.group_name = group_name;
   goal.repetitions = repetitions;
   goal.recompute_time_law = recompute_time_law;
-  goal.simulation = simulation;
-  goal.scaling = scaling;
 
   auto future = client_ptr->async_send_goal(goal);
   auto res = rclcpp::spin_until_future_complete(node,future);

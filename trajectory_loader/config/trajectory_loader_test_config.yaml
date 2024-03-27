@@ -3,5 +3,4 @@ trj_loader_test:
   group_name: "manipulator"
   repetitions: 5
   recompute_time_law: false
-  scaling: 0.1
   simulation: false

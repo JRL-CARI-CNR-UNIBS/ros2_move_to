@@ -108,17 +108,6 @@ int main(int argc, char ** argv)
     return 1;
   }
 
-  double scaling;
-  if(cnr::param::has(ns+"scaling",w))
-    cnr::param::get(ns+"scaling",scaling,w);
-  else
-  {
-    RCLCPP_ERROR(node->get_logger(),"scaling not defined");
-    RCLCPP_ERROR_STREAM(node->get_logger(),w);
-
-    return 1;
-  }
-
   double z_shift;
   if(cnr::param::has(ns+"z_shift",w))
     cnr::param::get(ns+"z_shift",z_shift,w);
@@ -161,7 +150,6 @@ int main(int argc, char ** argv)
   auto goal = trajectory_loader::action::MoveToAction::Goal();
   goal.group_name = group_name;
   goal.ik_service_name = ik_service_name;
-  goal.scaling = scaling;
   goal.pose = pose;
   goal.simulation = simulation;
 
