@@ -8,21 +8,28 @@ int main(int argc, char ** argv)
   rclcpp::init(argc, argv);
   auto node = rclcpp::Node::make_shared("test_trajectory_loader");
   rclcpp_action::Client<trajectory_loader::action::TrajectoryLoaderAction>::SharedPtr client_ptr;
-  client_ptr = rclcpp_action::create_client<trajectory_loader::action::TrajectoryLoaderAction>(node,"/trajectory_loader");
+
+  std::string action_name;
+  if(node->get_namespace() == std::string("/"))
+    action_name = std::string("/trajectory_loader");
+  else
+    action_name = node->get_namespace()+std::string("/trajectory_loader");
+
+  client_ptr = rclcpp_action::create_client<trajectory_loader::action::TrajectoryLoaderAction>(node,action_name);
 
   while(not client_ptr->wait_for_action_server(std::chrono::seconds(1)))
   {
     if (not rclcpp::ok())
     {
-      RCLCPP_ERROR(node->get_logger(), "client interrupted while waiting for action /trajectory_loader to appear.");
+      RCLCPP_ERROR(node->get_logger(), "client interrupted while waiting for action %s to appear.",action_name.c_str());
       return 1;
     }
-    RCLCPP_INFO(node->get_logger(), "waiting for action /trajectory_loader to appear...");
+    RCLCPP_INFO(node->get_logger(), "waiting for action %s to appear...",action_name.c_str());
   }
 
   auto goal = trajectory_loader::action::TrajectoryLoaderAction::Goal();
 
-  std::string ns = "/trj_loader_test/";
+  std::string ns = node->get_namespace()+std::string("/trj_loader_test/");
   std::string w;
   std::vector<std::string> trj;
   if(cnr::param::has(ns+"trj_names",w))
@@ -38,6 +45,17 @@ int main(int argc, char ** argv)
   else
   {
     RCLCPP_ERROR(node->get_logger(),"trj_names not defined");
+    RCLCPP_ERROR_STREAM(node->get_logger(),w);
+
+    return 1;
+  }
+
+  std::string fjt_action_name;
+  if(cnr::param::has(ns+"fjt_action_name",w))
+    cnr::param::get(ns+"fjt_action_name",fjt_action_name,w);
+  else
+  {
+    RCLCPP_ERROR(node->get_logger(),"fjt_action_name not defined");
     RCLCPP_ERROR_STREAM(node->get_logger(),w);
 
     return 1;
@@ -90,6 +108,7 @@ int main(int argc, char ** argv)
   goal.trj_names = trj;
   goal.group_name = group_name;
   goal.repetitions = repetitions;
+  goal.fjt_action_name = fjt_action_name;
   goal.recompute_time_law = recompute_time_law;
 
   auto future = client_ptr->async_send_goal(goal);

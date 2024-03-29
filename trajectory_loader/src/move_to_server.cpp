@@ -28,7 +28,7 @@ public:
     : Node("move_to_server", node_options)
   {
     this->action_server_ = rclcpp_action::create_server<trajectory_loader::action::MoveToAction>(
-          this,"/move_to",
+          this,"move_to",
           std::bind(&MoveToServer::handle_goal, this, std::placeholders::_1, std::placeholders::_2),
           std::bind(&MoveToServer::handle_cancel, this, std::placeholders::_1),
           std::bind(&MoveToServer::handle_accepted, this, std::placeholders::_1));

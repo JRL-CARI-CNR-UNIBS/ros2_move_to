@@ -9,7 +9,6 @@ from launch_ros.substitutions import FindPackageShare
 from moveit_configs_utils import MoveItConfigsBuilder
 
 def generate_launch_description():
-  
   return LaunchDescription([
     ExecuteProcess(
         cmd = [
@@ -18,25 +17,27 @@ def generate_launch_description():
           PathJoinSubstitution([
             FindPackageShare("trajectory_loader"),
             "config",
-            "multi_move_to_test_config.yaml"
+            "trajectory.yaml"
           ])
         ],
         shell=False
       ),
-    
+
     Node(
       package="trajectory_loader",
-      executable="move_to_test",
+      executable="move_to_server",
       output="screen",
       namespace="kuka_trajectory_loader",
-      ros_arguments=["--log-level", "info"]
+      ros_arguments=["--log-level", "info"],
+      parameters=[{"use_sim_time": True}]
     ),
 
     Node(
       package="trajectory_loader",
-      executable="move_to_test",
+      executable="move_to_server",
       output="screen",
       namespace="comau_trajectory_loader",
-      ros_arguments=["--log-level", "info"]
+      ros_arguments=["--log-level", "info"],
+      parameters=[{"use_sim_time": True}]
     )
 ])

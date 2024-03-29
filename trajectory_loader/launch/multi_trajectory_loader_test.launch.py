@@ -18,7 +18,7 @@ def generate_launch_description():
           PathJoinSubstitution([
             FindPackageShare("trajectory_loader"),
             "config",
-            "multi_move_to_test_config.yaml"
+            "multi_trajectory_loader_test_config.yaml"
           ])
         ],
         shell=False
@@ -26,15 +26,15 @@ def generate_launch_description():
     
     Node(
       package="trajectory_loader",
-      executable="move_to_test",
+      executable="trajectory_loader_test",
       output="screen",
       namespace="kuka_trajectory_loader",
       ros_arguments=["--log-level", "info"]
     ),
-
+    
     Node(
       package="trajectory_loader",
-      executable="move_to_test",
+      executable="trajectory_loader_test",
       output="screen",
       namespace="comau_trajectory_loader",
       ros_arguments=["--log-level", "info"]

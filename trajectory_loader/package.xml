@@ -23,6 +23,7 @@
   <depend>ik_solver_msgs</depend>
   <depend>geometry_msgs</depend>
   <depend>tf2_ros</depend>
+  <depend>control_msgs</depend>
 
   <member_of_group>rosidl_interface_packages</member_of_group>
 

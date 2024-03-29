@@ -24,6 +24,7 @@ find_package(action_msgs REQUIRED)
 find_package(moveit_ros_planning_interface REQUIRED)
 find_package(ik_solver_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(control_msgs REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "action/TrajectoryLoaderAction.action"
@@ -44,6 +45,7 @@ ament_target_dependencies(trajectory_loader_server
   sensor_msgs
   moveit_ros_planning_interface
   cnr_param
+  control_msgs
 )
 rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
 target_link_libraries(trajectory_loader_server "${cpp_typesupport_target}")
@@ -62,6 +64,7 @@ ament_target_dependencies(move_to_server
   cnr_param
   ik_solver_msgs
   geometry_msgs
+  control_msgs
 )
 rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
 target_link_libraries(move_to_server "${cpp_typesupport_target}")
@@ -78,6 +81,7 @@ ament_target_dependencies(trajectory_loader_test
     sensor_msgs
     moveit_ros_planning_interface
     cnr_param
+    control_msgs
 )
 rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
 target_link_libraries(trajectory_loader_test "${cpp_typesupport_target}")
@@ -95,6 +99,7 @@ ament_target_dependencies(move_to_test
     moveit_ros_planning_interface
     cnr_param
     tf2_ros
+    control_msgs
 )
 rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
 target_link_libraries(move_to_test "${cpp_typesupport_target}")

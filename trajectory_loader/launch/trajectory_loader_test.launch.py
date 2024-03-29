@@ -28,7 +28,7 @@ def generate_launch_description():
       package="trajectory_loader",
       executable="trajectory_loader_test",
       output="screen",
-      namespace="trajectory_loader",
+      namespace="",
       ros_arguments=["--log-level", "info"]
     )
 ])

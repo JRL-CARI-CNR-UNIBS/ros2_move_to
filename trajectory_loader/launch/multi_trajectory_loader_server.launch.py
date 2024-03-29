@@ -28,9 +28,17 @@ def generate_launch_description():
       package="trajectory_loader",
       executable="trajectory_loader_server",
       output="screen",
-      namespace="trajectory_loader",
-      # prefix=['gdb -ex=r --args'],
+      namespace="kuka_trajectory_loader",
       ros_arguments=["--log-level", "warn"],
-      parameters=[{"use_sim_time": False}]
+      parameters=[{"use_sim_time": True}]
+    ),
+
+    Node(
+      package="trajectory_loader",
+      executable="trajectory_loader_server",
+      output="screen",
+      namespace="comau_trajectory_loader",
+      ros_arguments=["--log-level", "warn"],
+      parameters=[{"use_sim_time": True}]
     )
 ])

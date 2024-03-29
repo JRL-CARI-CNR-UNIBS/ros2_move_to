@@ -1,6 +1,7 @@
 trj_loader_test: 
-  trj_names: ["trj_kuka"]
-  group_name: "kuka"
+  trj_names: ["trj_comau"]
+  fjt_action_name: "/comau_scaled_fjt_controller/follow_joint_trajectory"
+  group_name: "comau"
   repetitions: 5
   recompute_time_law: false
   simulation: false

@@ -27,8 +27,7 @@ def generate_launch_description():
       package="trajectory_loader",
       executable="move_to_server",
       output="screen",
-      namespace="trajectory_loader",
-      # prefix=['gdb -ex=r --args'],
+      namespace="",
       ros_arguments=["--log-level", "info"],
       parameters=[{"use_sim_time": True}]
     )

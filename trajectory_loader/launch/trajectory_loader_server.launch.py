@@ -9,8 +9,8 @@ from launch_ros.substitutions import FindPackageShare
 from moveit_configs_utils import MoveItConfigsBuilder
 
 def generate_launch_description():
-  
-  return LaunchDescription([
+#  moveit_configs = MoveItConfigsBuilder("nj-220-27").to_moveit_configs()
+ return LaunchDescription([
     ExecuteProcess(
         cmd = [
           FindExecutable(name="cnr_param_server"),
@@ -18,7 +18,7 @@ def generate_launch_description():
           PathJoinSubstitution([
             FindPackageShare("trajectory_loader"),
             "config",
-            "multi_move_to_test_config.yaml"
+            "trajectory.yaml"
           ])
         ],
         shell=False
@@ -26,17 +26,11 @@ def generate_launch_description():
     
     Node(
       package="trajectory_loader",
-      executable="move_to_test",
+      executable="trajectory_loader_server",
       output="screen",
-      namespace="kuka_trajectory_loader",
-      ros_arguments=["--log-level", "info"]
-    ),
-
-    Node(
-      package="trajectory_loader",
-      executable="move_to_test",
-      output="screen",
-      namespace="comau_trajectory_loader",
-      ros_arguments=["--log-level", "info"]
+      namespace="",
+      # prefix=['gdb -ex=r --args'],
+      ros_arguments=["--log-level", "info"],
+      parameters=[{"use_sim_time": True}]
     )
 ])

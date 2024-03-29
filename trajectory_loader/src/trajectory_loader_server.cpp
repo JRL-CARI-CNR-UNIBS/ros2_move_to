@@ -11,9 +11,11 @@
 #include "cnr_param/cnr_param.h"
 #include "trajectory_loader/action/trajectory_loader_action.hpp"
 
-#include <moveit/move_group_interface/move_group_interface.h>
+#include "moveit/move_group_interface/move_group_interface.h"
 #include "moveit/trajectory_processing/iterative_spline_parameterization.h"
 #include "moveit/trajectory_processing/time_optimal_trajectory_generation.h"
+
+#include "control_msgs/control_msgs/action/follow_joint_trajectory.hpp"
 
 using namespace std::chrono_literals;
 
@@ -24,7 +26,7 @@ public:
     : Node("trajectory_loader_server", node_options)
   {
     this->action_server_ = rclcpp_action::create_server<trajectory_loader::action::TrajectoryLoaderAction>(
-          this,"/trajectory_loader",
+          this,"trajectory_loader",
           std::bind(&TrajectoryLoaderServer::handle_goal, this, std::placeholders::_1, std::placeholders::_2),
           std::bind(&TrajectoryLoaderServer::handle_cancel, this, std::placeholders::_1),
           std::bind(&TrajectoryLoaderServer::handle_accepted, this, std::placeholders::_1));
@@ -73,7 +75,10 @@ public:
   }
 
 private:
+  bool fjt_error_;
+  bool fjt_finished_;
   rclcpp::Publisher<moveit_msgs::msg::DisplayTrajectory>::SharedPtr display_trj_pub_;
+  rclcpp_action::Client<control_msgs::action::FollowJointTrajectory>::SharedPtr action_client_;
   rclcpp_action::Server<trajectory_loader::action::TrajectoryLoaderAction>::SharedPtr action_server_;
   std::shared_ptr<rclcpp_action::ServerGoalHandle<trajectory_loader::action::TrajectoryLoaderAction>> goal_handle_;
 
@@ -84,6 +89,22 @@ private:
 
     result->ok = false;
     const auto goal = goal_handle_->get_goal();
+
+    this->action_client_ = rclcpp_action::create_client<control_msgs::action::FollowJointTrajectory>(this,goal->fjt_action_name);
+
+    if(!this->action_client_->wait_for_action_server())
+    {
+      RCLCPP_ERROR(this->get_logger(), "Action server %s not available after waiting", goal->fjt_action_name.c_str());
+      result->error = "Fjt Action server not available after waiting";
+      goal_handle_->abort(result);
+      clear();
+
+      return;
+    }
+
+    auto send_goal_options = rclcpp_action::Client<control_msgs::action::FollowJointTrajectory>::SendGoalOptions();
+    send_goal_options.result_callback =
+        std::bind(&TrajectoryLoaderServer::result_callback, this, std::placeholders::_1);
 
     std::string summary = "Request:\n";
     summary = summary+" - trj: [";
@@ -96,19 +117,12 @@ private:
     }
 
     summary = summary+" - group_name: "+goal->group_name+"\n";
+    summary = summary+" - fjt_action_name: "+goal->fjt_action_name+"\n";
     summary = summary+" - repetitions: "+std::to_string(goal->repetitions)+"\n";
     summary = summary+" - recompute_time_law: "+(goal->recompute_time_law? "true": "false")+"\n";
     summary = summary+" - simulation: "+(goal->simulation? "true": "false")+"\n";
 
     RCLCPP_WARN_STREAM(this->get_logger(),summary);
-
-    if(goal->repetitions < 1)
-    {
-      RCLCPP_ERROR_STREAM(this->get_logger(),"repetitions cannot be less than 1, current value "<<goal->repetitions);
-      result->error = "repetitions cannot be less than 1";
-      goal_handle_->abort(result);
-      return;
-    }
 
     bool success;
     bool recompute_time_law;
@@ -127,9 +141,10 @@ private:
           RCLCPP_INFO(this->get_logger(),"Goal canceled");
           result->error="canceled";
           goal_handle_->canceled(result);
+          clear();
+
           return;
         }
-
         recompute_time_law = goal->recompute_time_law;
         robot_current_state = *move_group.getCurrentState(10);
 
@@ -150,6 +165,8 @@ private:
 
           result->error = trj_name+" not found";
           goal_handle_->abort(result);
+          clear();
+
           return;
         }
         else
@@ -163,6 +180,8 @@ private:
           RCLCPP_INFO(this->get_logger(),"Goal canceled");
           result->error="canceled";
           goal_handle_->canceled(result);
+          clear();
+
           return;
         }
 
@@ -197,6 +216,8 @@ private:
           RCLCPP_INFO(this->get_logger(),"Goal canceled");
           result->error="canceled";
           goal_handle_->canceled(result);
+          clear();
+
           return;
         }
 
@@ -219,6 +240,8 @@ private:
           RCLCPP_ERROR(this->get_logger(),"Planning to initial trj position failed!");
           result->error = "planning failed!";
           goal_handle_->abort(result);
+          clear();
+
           return;
         }
 
@@ -234,6 +257,8 @@ private:
           RCLCPP_INFO(this->get_logger(),"Goal canceled");
           result->error="canceled";
           goal_handle_->canceled(result);
+          clear();
+
           return;
         }
 
@@ -242,21 +267,46 @@ private:
           // Execute approach trajectory
           RCLCPP_INFO(this->get_logger(),"Move %s to initial position", goal->group_name.c_str());
 
-          moveit::core::MoveItErrorCode moveit_error_code = move_group.execute(approach_trj);
-          if(moveit_error_code != moveit::core::MoveItErrorCode::SUCCESS)
+          fjt_error_ = false;
+          fjt_finished_ = false;
+          auto goal_msg = control_msgs::action::FollowJointTrajectory::Goal();
+          goal_msg.trajectory = approach_trj.joint_trajectory;
+          this->action_client_->async_send_goal(goal_msg, send_goal_options);
+
+          rclcpp::Rate rate(100);
+          while(not fjt_finished_)
           {
-            RCLCPP_ERROR_STREAM(this->get_logger(), "Move group move failed with error code "
-                                <<moveit::core::error_code_to_string(moveit_error_code));
-            result->error = "Move group move failed with error code "+moveit::core::error_code_to_string(moveit_error_code);
+            RCLCPP_INFO(this->get_logger(),"Approach: Waiting end of fjt action");
+            rate.sleep();
+          }
+
+          if(fjt_error_)
+          {
+            RCLCPP_INFO(this->get_logger(),"Fjt action had an error, aborted or canceled");
+            result->error="fjt error, aborted or canceled";
             goal_handle_->abort(result);
+            clear();
+
             return;
           }
+
+          //          moveit::core::MoveItErrorCode moveit_error_code = move_group.execute(approach_trj);
+          //          if(moveit_error_code != moveit::core::MoveItErrorCode::SUCCESS)
+          //          {
+          //            RCLCPP_ERROR_STREAM(this->get_logger(), "Move group move failed with error code "
+          //                                <<moveit::core::error_code_to_string(moveit_error_code));
+          //            result->error = "Move group move failed with error code "+moveit::core::error_code_to_string(moveit_error_code);
+          //            goal_handle_->abort(result);
+          //            return;
+          //          }
 
           if(goal_handle_->is_canceling())
           {
             RCLCPP_INFO(this->get_logger(),"Goal canceled");
             result->error="canceled";
             goal_handle_->canceled(result);
+            clear();
+
             return;
           }
 
@@ -267,21 +317,46 @@ private:
             // Execute the trajectory
             RCLCPP_INFO(this->get_logger(), "Execute trajectory %s", trj_name.c_str());
 
-            moveit::core::MoveItErrorCode moveit_error_code = move_group.execute(trj);
-            if(moveit_error_code != moveit::core::MoveItErrorCode::SUCCESS)
+            fjt_error_ = false;
+            fjt_finished_ = false;
+            auto goal_msg = control_msgs::action::FollowJointTrajectory::Goal();
+            goal_msg.trajectory = trj.joint_trajectory;
+            this->action_client_->async_send_goal(goal_msg, send_goal_options);
+
+            rclcpp::Rate rate(100);
+            while(not fjt_finished_)
             {
-              RCLCPP_ERROR_STREAM(this->get_logger(), "Move group move failed with error code "
-                                  <<moveit::core::error_code_to_string(moveit_error_code));
-              result->error = "Move group move failed with error code "+moveit::core::error_code_to_string(moveit_error_code);
+              RCLCPP_INFO(this->get_logger(),"Execute: Waiting end of fjt action");
+              rate.sleep();
+            }
+
+            if(fjt_error_)
+            {
+              RCLCPP_INFO(this->get_logger(),"Fjt action had an error, aborted or canceled");
+              result->error="fjt error, aborted or canceled";
               goal_handle_->abort(result);
+              clear();
+
               return;
             }
+
+            //            moveit::core::MoveItErrorCode moveit_error_code = move_group.execute(trj);
+            //            if(moveit_error_code != moveit::core::MoveItErrorCode::SUCCESS)
+            //            {
+            //              RCLCPP_ERROR_STREAM(this->get_logger(), "Move group move failed with error code "
+            //                                  <<moveit::core::error_code_to_string(moveit_error_code));
+            //              result->error = "Move group move failed with error code "+moveit::core::error_code_to_string(moveit_error_code);
+            //              goal_handle_->abort(result);
+            //              return;
+            //            }
 
             if(goal_handle_->is_canceling())
             {
               RCLCPP_INFO(this->get_logger(),"Goal canceled");
               result->error="canceled";
               goal_handle_->canceled(result);
+              clear();
+
               return;
             }
 
@@ -302,6 +377,8 @@ private:
             RCLCPP_INFO(this->get_logger(),"Goal canceled");
             result->error="canceled";
             goal_handle_->canceled(result);
+            clear();
+
             return;
           }
           display_trj_msg.trajectory.at(0)=trj;
@@ -314,6 +391,8 @@ private:
 
     result->ok=true;
     goal_handle_->succeed(result);
+    clear();
+
     return;
   }
 
@@ -495,8 +574,13 @@ private:
       }
     }
 
-    (void)uuid;
+    if(goal->repetitions < 1)
+    {
+      RCLCPP_ERROR_STREAM(this->get_logger(),"repetitions cannot be less than 1, current value "<<goal->repetitions);
+      return rclcpp_action::GoalResponse::REJECT;
+    }
 
+    (void)uuid;
     return rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE;
   }
 
@@ -505,6 +589,12 @@ private:
       <trajectory_loader::action::TrajectoryLoaderAction>> goal_handle)
   {
     RCLCPP_INFO(this->get_logger(), "Received request to cancel goal");
+
+    if(this->action_client_ != nullptr)
+    {
+      RCLCPP_INFO(this->get_logger(), "Asking to fjt to cancel all goals");
+      action_client_->async_cancel_all_goals();
+    }
 
     (void)goal_handle;
     return rclcpp_action::CancelResponse::ACCEPT;
@@ -517,6 +607,40 @@ private:
     //    goal_handle_->execute();
     std::thread(std::bind(&TrajectoryLoaderServer::load_trajectory, this)).detach();
   }
+
+  void result_callback(const rclcpp_action::ClientGoalHandle<control_msgs::action::FollowJointTrajectory>::WrappedResult & result)
+  {
+    for(int i=0;i<10;i++)
+      RCLCPP_WARN(this->get_logger(), "RESULT CALLBACK");
+
+
+    switch (result.code) {
+    case rclcpp_action::ResultCode::SUCCEEDED:
+      break;
+    case rclcpp_action::ResultCode::ABORTED:
+      fjt_error_ = true;
+      RCLCPP_ERROR(this->get_logger(), "Goal was aborted");
+      break;
+    case rclcpp_action::ResultCode::CANCELED:
+      fjt_error_ = true;
+      RCLCPP_ERROR(this->get_logger(), "Goal was canceled");
+      break;
+    default:
+      RCLCPP_ERROR(this->get_logger(), "Unknown result code");
+      fjt_error_ = true;
+      break;
+    }
+    fjt_finished_ = true;
+    return;
+  }
+
+  void clear()
+  {
+    action_client_ = nullptr;
+    fjt_error_ = false;
+    fjt_finished_ = false;
+  }
+
 };
 
 int main(int argc, char ** argv)

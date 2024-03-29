@@ -3,5 +3,4 @@ move_to_test:
   tool_frame: "flange"
   ik_service_name: "/comau_ik_solver/get_ik"
   simulation: false
-  scaling: 0.1
   z_shift: 0.3

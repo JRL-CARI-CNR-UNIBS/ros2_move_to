@@ -1,3 +1,4 @@
+
 # This Python file uses the following encoding: utf-8
 from launch import LaunchDescription, LaunchContext
 from launch.actions import ExecuteProcess, OpaqueFunction, DeclareLaunchArgument, RegisterEventHandler
@@ -18,7 +19,7 @@ def generate_launch_description():
           PathJoinSubstitution([
             FindPackageShare("trajectory_loader"),
             "config",
-            "multi_move_to_test_config.yaml"
+            "move_to_test_config.yaml"
           ])
         ],
         shell=False
@@ -28,15 +29,7 @@ def generate_launch_description():
       package="trajectory_loader",
       executable="move_to_test",
       output="screen",
-      namespace="kuka_trajectory_loader",
-      ros_arguments=["--log-level", "info"]
-    ),
-
-    Node(
-      package="trajectory_loader",
-      executable="move_to_test",
-      output="screen",
-      namespace="comau_trajectory_loader",
+      namespace="",
       ros_arguments=["--log-level", "info"]
     )
 ])

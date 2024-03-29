@@ -50,19 +50,28 @@ int main(int argc, char ** argv)
   rclcpp::init(argc, argv);
   auto node = rclcpp::Node::make_shared("test_move_to");
   rclcpp_action::Client<trajectory_loader::action::MoveToAction>::SharedPtr client_ptr;
-  client_ptr = rclcpp_action::create_client<trajectory_loader::action::MoveToAction>(node,"/move_to");
+
+  std::string action_name;
+  if(node->get_namespace() == std::string("/"))
+    action_name = std::string("/move_to");
+  else
+    action_name = node->get_namespace()+std::string("/move_to");
+
+  RCLCPP_INFO_STREAM(node->get_logger(),"Subscribing action "<<action_name);
+
+  client_ptr = rclcpp_action::create_client<trajectory_loader::action::MoveToAction>(node,action_name);
 
   while(not client_ptr->wait_for_action_server(std::chrono::seconds(1)))
   {
     if (not rclcpp::ok())
     {
-      RCLCPP_ERROR(node->get_logger(), "client interrupted while waiting for action /move_to to appear.");
+      RCLCPP_ERROR(node->get_logger(), "client interrupted while waiting for action %s to appear.",action_name.c_str());
       return 1;
     }
-    RCLCPP_INFO(node->get_logger(), "waiting for action /move_to to appear...");
+    RCLCPP_INFO(node->get_logger(), "waiting for action %s to appear...",action_name.c_str());
   }
 
-  std::string ns = "/move_to_test/";
+  std::string ns = node->get_namespace()+std::string("/move_to_test/");
   std:: string w;
   std::string group_name;
   if(cnr::param::has(ns+"group_name",w))
