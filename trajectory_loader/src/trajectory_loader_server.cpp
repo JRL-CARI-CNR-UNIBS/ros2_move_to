@@ -88,7 +88,7 @@ private:
     auto feedback = std::make_shared<trajectory_loader::action::TrajectoryLoaderAction::Feedback>();
 
     result->ok = false;
-    const auto goal = goal_handle_->get_goal();
+    const auto goal = this->goal_handle_->get_goal();
 
     this->action_client_ = rclcpp_action::create_client<control_msgs::action::FollowJointTrajectory>(this,goal->fjt_action_name);
 
@@ -96,8 +96,8 @@ private:
     {
       RCLCPP_ERROR(this->get_logger(), "Action server %s not available after waiting", goal->fjt_action_name.c_str());
       result->error = "Fjt Action server not available after waiting";
-      goal_handle_->abort(result);
-      clear();
+      this->goal_handle_->abort(result);
+      this->clear();
 
       return;
     }
@@ -140,8 +140,8 @@ private:
         {
           RCLCPP_INFO(this->get_logger(),"Goal canceled");
           result->error="canceled";
-          goal_handle_->canceled(result);
-          clear();
+          this->goal_handle_->canceled(result);
+          this->clear();
 
           return;
         }
@@ -151,7 +151,7 @@ private:
         feedback->current_repetition = irep;
         feedback->trj_in_execution = trj_name;
 
-        goal_handle_->publish_feedback(feedback);
+        this->goal_handle_->publish_feedback(feedback);
 
         moveit_msgs::msg::RobotTrajectory trj;
         moveit_msgs::msg::RobotTrajectory approach_trj;
@@ -164,8 +164,8 @@ private:
           RCLCPP_ERROR_STREAM(this->get_logger(), what);
 
           result->error = trj_name+" not found";
-          goal_handle_->abort(result);
-          clear();
+          this->goal_handle_->abort(result);
+          this->clear();
 
           return;
         }
@@ -179,8 +179,8 @@ private:
         {
           RCLCPP_INFO(this->get_logger(),"Goal canceled");
           result->error="canceled";
-          goal_handle_->canceled(result);
-          clear();
+          this->goal_handle_->canceled(result);
+          this->clear();
 
           return;
         }
@@ -211,12 +211,12 @@ private:
             trj.joint_trajectory=trj_from_param;
         }
 
-        if(goal_handle_->is_canceling())
+        if(this->goal_handle_->is_canceling())
         {
           RCLCPP_INFO(this->get_logger(),"Goal canceled");
           result->error="canceled";
-          goal_handle_->canceled(result);
-          clear();
+          this->goal_handle_->canceled(result);
+          this->clear();
 
           return;
         }
@@ -239,8 +239,8 @@ private:
         {
           RCLCPP_ERROR(this->get_logger(),"Planning to initial trj position failed!");
           result->error = "planning failed!";
-          goal_handle_->abort(result);
-          clear();
+          this->goal_handle_->abort(result);
+          this->clear();
 
           return;
         }
@@ -252,12 +252,12 @@ private:
 
         RCLCPP_INFO_STREAM(this->get_logger(),"Approach trj\n"<<trajectory);
 
-        if(goal_handle_->is_canceling())
+        if(this->goal_handle_->is_canceling())
         {
           RCLCPP_INFO(this->get_logger(),"Goal canceled");
           result->error="canceled";
-          goal_handle_->canceled(result);
-          clear();
+          this->goal_handle_->canceled(result);
+          this->clear();
 
           return;
         }
@@ -267,25 +267,25 @@ private:
           // Execute approach trajectory
           RCLCPP_INFO(this->get_logger(),"Move %s to initial position", goal->group_name.c_str());
 
-          fjt_error_ = false;
-          fjt_finished_ = false;
+          this->fjt_error_ = false;
+          this->fjt_finished_ = false;
           auto goal_msg = control_msgs::action::FollowJointTrajectory::Goal();
           goal_msg.trajectory = approach_trj.joint_trajectory;
           this->action_client_->async_send_goal(goal_msg, send_goal_options);
 
           rclcpp::Rate rate(100);
-          while(not fjt_finished_)
+          while(not this->fjt_finished_)
           {
             RCLCPP_INFO(this->get_logger(),"Approach: Waiting end of fjt action");
             rate.sleep();
           }
 
-          if(fjt_error_)
+          if(this->fjt_error_)
           {
             RCLCPP_INFO(this->get_logger(),"Fjt action had an error, aborted or canceled");
             result->error="fjt error, aborted or canceled";
-            goal_handle_->abort(result);
-            clear();
+            this->goal_handle_->abort(result);
+            this->clear();
 
             return;
           }
@@ -300,12 +300,12 @@ private:
           //            return;
           //          }
 
-          if(goal_handle_->is_canceling())
+          if(this->goal_handle_->is_canceling())
           {
             RCLCPP_INFO(this->get_logger(),"Goal canceled");
             result->error="canceled";
-            goal_handle_->canceled(result);
-            clear();
+            this->goal_handle_->canceled(result);
+            this->clear();
 
             return;
           }
@@ -317,25 +317,25 @@ private:
             // Execute the trajectory
             RCLCPP_INFO(this->get_logger(), "Execute trajectory %s", trj_name.c_str());
 
-            fjt_error_ = false;
-            fjt_finished_ = false;
+            this->fjt_error_ = false;
+            this->fjt_finished_ = false;
             auto goal_msg = control_msgs::action::FollowJointTrajectory::Goal();
             goal_msg.trajectory = trj.joint_trajectory;
             this->action_client_->async_send_goal(goal_msg, send_goal_options);
 
             rclcpp::Rate rate(100);
-            while(not fjt_finished_)
+            while(not this->fjt_finished_)
             {
               RCLCPP_INFO(this->get_logger(),"Execute: Waiting end of fjt action");
               rate.sleep();
             }
 
-            if(fjt_error_)
+            if(this->fjt_error_)
             {
               RCLCPP_INFO(this->get_logger(),"Fjt action had an error, aborted or canceled");
               result->error="fjt error, aborted or canceled";
-              goal_handle_->abort(result);
-              clear();
+              this->goal_handle_->abort(result);
+              this->clear();
 
               return;
             }
@@ -350,12 +350,12 @@ private:
             //              return;
             //            }
 
-            if(goal_handle_->is_canceling())
+            if(this->goal_handle_->is_canceling())
             {
               RCLCPP_INFO(this->get_logger(),"Goal canceled");
               result->error="canceled";
-              goal_handle_->canceled(result);
-              clear();
+              this->goal_handle_->canceled(result);
+              this->clear();
 
               return;
             }
@@ -367,22 +367,22 @@ private:
         {
           moveit_msgs::msg::DisplayTrajectory display_trj_msg;
           display_trj_msg.trajectory.push_back(approach_trj);
-          display_trj_pub_->publish(display_trj_msg);
+          this->display_trj_pub_->publish(display_trj_msg);
 
           rclcpp::sleep_for(std::chrono::nanoseconds(
                               rclcpp::Duration(approach_trj.joint_trajectory.points.back().time_from_start).nanoseconds()));
 
-          if(goal_handle_->is_canceling())
+          if(this->goal_handle_->is_canceling())
           {
             RCLCPP_INFO(this->get_logger(),"Goal canceled");
             result->error="canceled";
-            goal_handle_->canceled(result);
-            clear();
+            this->goal_handle_->canceled(result);
+            this->clear();
 
             return;
           }
           display_trj_msg.trajectory.at(0)=trj;
-          display_trj_pub_->publish(display_trj_msg);
+          this->display_trj_pub_->publish(display_trj_msg);
           rclcpp::sleep_for(std::chrono::nanoseconds(
                               rclcpp::Duration(trj.joint_trajectory.points.back().time_from_start).nanoseconds()));
         }
@@ -390,8 +390,8 @@ private:
     }
 
     result->ok=true;
-    goal_handle_->succeed(result);
-    clear();
+    this->goal_handle_->succeed(result);
+    this->clear();
 
     return;
   }
@@ -603,42 +603,38 @@ private:
   void handle_accepted(const std::shared_ptr<rclcpp_action::ServerGoalHandle
                        <trajectory_loader::action::TrajectoryLoaderAction>> goal_handle)
   {
-    goal_handle_ = goal_handle;
+    this->goal_handle_ = goal_handle;
     //    goal_handle_->execute();
     std::thread(std::bind(&TrajectoryLoaderServer::load_trajectory, this)).detach();
   }
 
   void result_callback(const rclcpp_action::ClientGoalHandle<control_msgs::action::FollowJointTrajectory>::WrappedResult & result)
   {
-    for(int i=0;i<10;i++)
-      RCLCPP_WARN(this->get_logger(), "RESULT CALLBACK");
-
-
     switch (result.code) {
     case rclcpp_action::ResultCode::SUCCEEDED:
       break;
     case rclcpp_action::ResultCode::ABORTED:
-      fjt_error_ = true;
+      this->fjt_error_ = true;
       RCLCPP_ERROR(this->get_logger(), "Goal was aborted");
       break;
     case rclcpp_action::ResultCode::CANCELED:
-      fjt_error_ = true;
+      this->fjt_error_ = true;
       RCLCPP_ERROR(this->get_logger(), "Goal was canceled");
       break;
     default:
       RCLCPP_ERROR(this->get_logger(), "Unknown result code");
-      fjt_error_ = true;
+      this->fjt_error_ = true;
       break;
     }
-    fjt_finished_ = true;
+    this->fjt_finished_ = true;
     return;
   }
 
   void clear()
   {
-    action_client_ = nullptr;
-    fjt_error_ = false;
-    fjt_finished_ = false;
+    this->action_client_ = nullptr;
+    this->fjt_error_ = false;
+    this->fjt_finished_ = false;
   }
 
 };

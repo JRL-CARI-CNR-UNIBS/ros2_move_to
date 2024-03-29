@@ -73,6 +73,17 @@ int main(int argc, char ** argv)
 
   std::string ns = node->get_namespace()+std::string("/move_to_test/");
   std:: string w;
+  std::string fjt_action_name;
+  if(cnr::param::has(ns+"fjt_action_name",w))
+    cnr::param::get(ns+"fjt_action_name",fjt_action_name,w);
+  else
+  {
+    RCLCPP_ERROR(node->get_logger(),"fjt_action_name not defined");
+    RCLCPP_ERROR_STREAM(node->get_logger(),w);
+
+    return 1;
+  }
+
   std::string group_name;
   if(cnr::param::has(ns+"group_name",w))
     cnr::param::get(ns+"group_name",group_name,w);
@@ -157,6 +168,7 @@ int main(int argc, char ** argv)
   pose.pose.position.z = pose.pose.position.z+z_shift;
 
   auto goal = trajectory_loader::action::MoveToAction::Goal();
+  goal.fjt_action_name = fjt_action_name;
   goal.group_name = group_name;
   goal.ik_service_name = ik_service_name;
   goal.pose = pose;
