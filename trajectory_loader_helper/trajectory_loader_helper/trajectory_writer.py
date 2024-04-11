@@ -12,7 +12,9 @@ class TrajectoryWriter(Node):
             DisplayTrajectory,
             '/display_planned_path',
             self.listener_callback,
-            10)        
+            10)   
+        self.get_logger().info('Listening to /display_planned_path')
+     
         
     def listener_callback(self, msg):
         self.get_logger().info('Received planned path, writing to YAML file...')
