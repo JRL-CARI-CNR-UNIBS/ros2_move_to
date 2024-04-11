@@ -10,19 +10,6 @@ from moveit_configs_utils import MoveItConfigsBuilder
 
 def generate_launch_description():
   return LaunchDescription([
-    ExecuteProcess(
-        cmd = [
-          FindExecutable(name="cnr_param_server"),
-          "--path-to-file",
-          PathJoinSubstitution([
-            FindPackageShare("trajectory_loader"),
-            "config",
-            "trajectory.yaml"
-          ])
-        ],
-        shell=False
-      ),
-
     Node(
       package="trajectory_loader",
       executable="move_to_server",
