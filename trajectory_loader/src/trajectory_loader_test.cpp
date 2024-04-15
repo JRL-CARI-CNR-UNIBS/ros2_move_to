@@ -72,6 +72,28 @@ int main(int argc, char ** argv)
     return 1;
   }
 
+  std::string speed_scaling_topic;
+  if(cnr::param::has(ns+"speed_scaling_topic",w))
+    cnr::param::get(ns+"speed_scaling_topic",speed_scaling_topic,w);
+  else
+  {
+    RCLCPP_ERROR(node->get_logger(),"speed_scaling_topic not defined");
+    RCLCPP_ERROR_STREAM(node->get_logger(),w);
+
+    return 1;
+  }
+
+  int scaling;
+  if(cnr::param::has(ns+"scaling",w))
+    cnr::param::get(ns+"scaling",scaling,w);
+  else
+  {
+    RCLCPP_ERROR(node->get_logger(),"scaling not defined");
+    RCLCPP_ERROR_STREAM(node->get_logger(),w);
+
+    return 1;
+  }
+
   int repetitions;
   if(cnr::param::has(ns+"repetitions",w))
     cnr::param::get(ns+"repetitions",repetitions,w);
@@ -106,10 +128,12 @@ int main(int argc, char ** argv)
   }
 
   goal.trj_names = trj;
+  goal.scaling = scaling;
   goal.group_name = group_name;
   goal.repetitions = repetitions;
   goal.fjt_action_name = fjt_action_name;
   goal.recompute_time_law = recompute_time_law;
+  goal.speed_scaling_topic = speed_scaling_topic;
 
   auto future = client_ptr->async_send_goal(goal);
   auto res = rclcpp::spin_until_future_complete(node,future);

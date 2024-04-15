@@ -95,6 +95,28 @@ int main(int argc, char ** argv)
     return 1;
   }
 
+  std::string speed_scaling_topic;
+  if(cnr::param::has(ns+"speed_scaling_topic",w))
+    cnr::param::get(ns+"speed_scaling_topic",speed_scaling_topic,w);
+  else
+  {
+    RCLCPP_ERROR(node->get_logger(),"speed_scaling_topic not defined");
+    RCLCPP_ERROR_STREAM(node->get_logger(),w);
+
+    return 1;
+  }
+
+  int scaling;
+  if(cnr::param::has(ns+"scaling",w))
+    cnr::param::get(ns+"scaling",scaling,w);
+  else
+  {
+    RCLCPP_ERROR(node->get_logger(),"scaling not defined");
+    RCLCPP_ERROR_STREAM(node->get_logger(),w);
+
+    return 1;
+  }
+
   std::string tool_frame;
   if(cnr::param::has(ns+"tool_frame",w))
     cnr::param::get(ns+"tool_frame",tool_frame,w);
@@ -168,12 +190,13 @@ int main(int argc, char ** argv)
   pose.pose.position.z = pose.pose.position.z+z_shift;
 
   auto goal = trajectory_loader::action::MoveToAction::Goal();
-  goal.fjt_action_name = fjt_action_name;
-  goal.group_name = group_name;
-  goal.ik_service_name = ik_service_name;
   goal.pose = pose;
+  goal.scaling = scaling;
+  goal.group_name = group_name;
   goal.simulation = simulation;
-
+  goal.fjt_action_name = fjt_action_name;
+  goal.ik_service_name = ik_service_name;
+  goal.speed_scaling_topic = speed_scaling_topic;
 
   RCLCPP_INFO(node->get_logger(),"sending goal");
 

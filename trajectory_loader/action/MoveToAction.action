@@ -2,6 +2,8 @@
 string group_name
 string fjt_action_name
 string ik_service_name
+int16 scaling
+string speed_scaling_topic
 geometry_msgs/PoseStamped pose
 bool simulation
 ---

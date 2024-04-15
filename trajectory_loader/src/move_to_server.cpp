@@ -3,6 +3,7 @@
 #include "rclcpp_action/rclcpp_action.hpp"
 #include "rclcpp_components/register_node_macro.hpp"
 
+#include "std_msgs/msg/int16.hpp"
 #include "std_msgs/msg/string.hpp"
 #include "builtin_interfaces/msg/duration.hpp"
 #include "moveit_msgs/msg/display_trajectory.hpp"
@@ -105,6 +106,7 @@ private:
   bool fjt_finished_;
   bool ik_response_received_;
   ik_solver_msgs::srv::GetIk::Response::SharedPtr ik_response_;
+  rclcpp::Publisher<std_msgs::msg::Int16>::SharedPtr scaling_pub_;
   rclcpp::Publisher<moveit_msgs::msg::DisplayTrajectory>::SharedPtr display_trj_pub_;
   rclcpp_action::Server<trajectory_loader::action::MoveToAction>::SharedPtr action_server_;
   std::map<std::string,rclcpp::Client<ik_solver_msgs::srv::GetIk>::SharedPtr> ik_client_map_;
@@ -210,6 +212,7 @@ private:
     const auto goal = this->goal_handle_->get_goal();
 
     this->action_client_ = rclcpp_action::create_client<control_msgs::action::FollowJointTrajectory>(this,goal->fjt_action_name);
+    this->scaling_pub_ = this->create_publisher<std_msgs::msg::Int16>(goal->speed_scaling_topic,1);
 
     if(!this->action_client_->wait_for_action_server())
     {
@@ -225,14 +228,34 @@ private:
     send_goal_options.result_callback =
         std::bind(&MoveToServer::result_callback, this, std::placeholders::_1);
 
+    std_msgs::msg::Int16 scaling;
+    if(goal->scaling<0)
+    {
+      RCLCPP_WARN_STREAM(this->get_logger(), "Scaling cannot be negative, set to 0");
+      scaling.data = 0;
+    }
+    else if(goal->scaling>100)
+    {
+      RCLCPP_WARN_STREAM(this->get_logger(), "Scaling cannot be greater than 100, set to 100");
+      scaling.data = 100;
+    }
+    else
+    {
+      scaling.data = goal->scaling;
+    }
+
     std::string summary = "Request:\n";
     summary = summary+" - group_name: "+goal->group_name+"\n";
     summary = summary+" - fjt_action_name: "+goal->fjt_action_name+"\n";
     summary = summary+" - ik_service_name: "+goal->ik_service_name+"\n";
+    summary = summary+" - speed_scaling_topic: "+goal->speed_scaling_topic+"\n";
+    summary = summary+" - scaling: "+std::to_string(goal->scaling)+"\n";
     summary = summary+" - simulation: "+(goal->simulation? "true": "false")+"\n";
     summary = summary+" - pose:\n"+geometry_msgs::msg::to_yaml(goal->pose)+"\n";
 
     RCLCPP_WARN_STREAM(this->get_logger(),summary);
+
+    this->scaling_pub_->publish(scaling);
 
     if (this->ik_client_map_.find(goal->ik_service_name) == this->ik_client_map_.end())
     {
@@ -484,6 +507,7 @@ private:
 
   void clear()
   {
+    this->scaling_pub_ = nullptr;
     this->action_client_ = nullptr;
     this->fjt_error_ = false;
     this->fjt_finished_ = false;

@@ -3,6 +3,7 @@
 #include "rclcpp_action/rclcpp_action.hpp"
 #include "rclcpp_components/register_node_macro.hpp"
 
+#include "std_msgs/msg/int16.hpp"
 #include "std_msgs/msg/string.hpp"
 #include "builtin_interfaces/msg/duration.hpp"
 #include "moveit_msgs/msg/display_trajectory.hpp"
@@ -77,6 +78,7 @@ public:
 private:
   bool fjt_error_;
   bool fjt_finished_;
+  rclcpp::Publisher<std_msgs::msg::Int16>::SharedPtr scaling_pub_;
   rclcpp::Publisher<moveit_msgs::msg::DisplayTrajectory>::SharedPtr display_trj_pub_;
   rclcpp_action::Client<control_msgs::action::FollowJointTrajectory>::SharedPtr action_client_;
   rclcpp_action::Server<trajectory_loader::action::TrajectoryLoaderAction>::SharedPtr action_server_;
@@ -91,6 +93,7 @@ private:
     const auto goal = this->goal_handle_->get_goal();
 
     this->action_client_ = rclcpp_action::create_client<control_msgs::action::FollowJointTrajectory>(this,goal->fjt_action_name);
+    this->scaling_pub_ = this->create_publisher<std_msgs::msg::Int16>(goal->speed_scaling_topic,1);
 
     if(!this->action_client_->wait_for_action_server())
     {
@@ -116,8 +119,26 @@ private:
         summary = summary+goal->trj_names[i]+", ";
     }
 
+    std_msgs::msg::Int16 scaling;
+    if(goal->scaling<0)
+    {
+      RCLCPP_WARN_STREAM(this->get_logger(), "Scaling cannot be negative, set to 0");
+      scaling.data = 0;
+    }
+    else if(goal->scaling>100)
+    {
+      RCLCPP_WARN_STREAM(this->get_logger(), "Scaling cannot be greater than 100, set to 100");
+      scaling.data = 100;
+    }
+    else
+    {
+      scaling.data = goal->scaling;
+    }
+
     summary = summary+" - group_name: "+goal->group_name+"\n";
     summary = summary+" - fjt_action_name: "+goal->fjt_action_name+"\n";
+    summary = summary+" - speed_scaling_topic: "+goal->speed_scaling_topic+"\n";
+    summary = summary+" - scaling: "+std::to_string(goal->scaling)+"\n";
     summary = summary+" - repetitions: "+std::to_string(goal->repetitions)+"\n";
     summary = summary+" - recompute_time_law: "+(goal->recompute_time_law? "true": "false")+"\n";
     summary = summary+" - simulation: "+(goal->simulation? "true": "false")+"\n";
@@ -136,6 +157,8 @@ private:
     {
       for(const std::string& trj_name : goal->trj_names)
       {
+        this->scaling_pub_->publish(scaling);
+
         if(goal_handle_->is_canceling())
         {
           RCLCPP_INFO(this->get_logger(),"Goal canceled");
@@ -633,6 +656,7 @@ private:
 
   void clear()
   {
+    this->scaling_pub_ = nullptr;
     this->action_client_ = nullptr;
     this->fjt_error_ = false;
     this->fjt_finished_ = false;

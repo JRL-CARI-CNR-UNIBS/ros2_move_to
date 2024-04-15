@@ -2,6 +2,8 @@
 string group_name
 string fjt_action_name
 string[] trj_names
+int16 scaling
+string speed_scaling_topic
 int32 repetitions
 bool recompute_time_law
 bool simulation
