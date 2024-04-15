@@ -485,6 +485,7 @@ private:
       what += trj_name + "/positions is broken";
       return false;
     }
+
     size_t np = q.size();
     size_t dof = q.at(0).size();
 
