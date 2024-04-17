@@ -150,7 +150,15 @@ private:
     moveit::planning_interface::MoveGroupInterface::Plan plan;
     moveit::planning_interface::MoveGroupInterface move_group(this->shared_from_this(),goal->group_name);
 
-    move_group.startStateMonitor();
+    if (!move_group.startStateMonitor())
+    {
+      RCLCPP_ERROR(this->get_logger(),"unable to read current state");
+      result->error ="unable to read current state";
+      this->goal_handle_->abort(result);
+      this->clear();
+      return;
+    }
+
     moveit::core::RobotState robot_current_state = *move_group.getCurrentState(10);
 
     for(int irep = 0; irep<goal->repetitions; irep++)
@@ -252,8 +260,21 @@ private:
           p.first = trj_from_param.joint_names[j];
           p.second = initial_trj_position[j];
           target_configuration.insert(p);
+          RCLCPP_ERROR_STREAM(this->get_logger(),"target_configuration = " <<  p.first << ": " << p.second);
+        }
+
+        if (!move_group.startStateMonitor())
+        {
+          RCLCPP_ERROR(this->get_logger(),"unable to read current state");
+          result->error ="unable to read current state";
+          this->goal_handle_->abort(result);
+          this->clear();
+          return;
         }
         move_group.setStartStateToCurrentState();
+        moveit::core::RobotStatePtr start_state = move_group.getCurrentState();
+        robot_current_state.printStateInfo();
+
         move_group.setJointValueTarget(target_configuration);
 
         robot_trajectory::RobotTrajectory trajectory(move_group.getRobotModel(), goal->group_name);
@@ -294,6 +315,23 @@ private:
           this->fjt_finished_ = false;
           auto goal_msg = control_msgs::action::FollowJointTrajectory::Goal();
           goal_msg.trajectory = approach_trj.joint_trajectory;
+
+
+          for (const trajectory_msgs::msg::JointTrajectoryPoint& p: goal_msg.trajectory.points)
+          {
+            std::cout << "approach point = ";
+            for (const double& j: p.positions)
+            {
+              std::cout << j << ", ";
+            }
+            std::cout << "approach velocities = ";
+            for (const double& j: p.velocities)
+            {
+              std::cout << j << ", ";
+            }
+            std::cout << std::endl;
+          }
+
           this->action_client_->async_send_goal(goal_msg, send_goal_options);
 
           rclcpp::Rate rate(100);
@@ -344,6 +382,24 @@ private:
             this->fjt_finished_ = false;
             auto goal_msg = control_msgs::action::FollowJointTrajectory::Goal();
             goal_msg.trajectory = trj.joint_trajectory;
+
+
+            for (const trajectory_msgs::msg::JointTrajectoryPoint& p: goal_msg.trajectory.points)
+            {
+              std::cout << "parameters point = ";
+              for (const double& j: p.positions)
+              {
+                std::cout << j << ", ";
+              }
+              std::cout << "parameters velocities = ";
+              for (const double& j: p.velocities)
+              {
+                std::cout << j << ", ";
+              }
+              std::cout << std::endl;
+            }
+
+
             this->action_client_->async_send_goal(goal_msg, send_goal_options);
 
             rclcpp::Rate rate(100);

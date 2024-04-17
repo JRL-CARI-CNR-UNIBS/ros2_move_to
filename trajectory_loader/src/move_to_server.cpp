@@ -277,7 +277,14 @@ private:
     moveit::planning_interface::MoveGroupInterface::Plan plan;
     moveit::planning_interface::MoveGroupInterface move_group(this->shared_from_this(),goal->group_name);
 
-    move_group.startStateMonitor();
+    if (!move_group.startStateMonitor())
+    {
+      RCLCPP_ERROR(this->get_logger(),"unable to read current state");
+      result->error ="unable to read current state";
+      this->goal_handle_->abort(result);
+      this->clear();
+      return;
+    }
 
     if(this->goal_handle_->is_canceling())
     {
@@ -345,6 +352,19 @@ private:
       p.second = best_ik[j];
       goal_map.insert(p);
     }
+
+    if (!move_group.startStateMonitor())
+    {
+      RCLCPP_ERROR(this->get_logger(),"unable to read current state");
+      result->error ="unable to read current state";
+      this->goal_handle_->abort(result);
+      this->clear();
+      return;
+    }
+    move_group.setStartStateToCurrentState();
+    moveit::core::RobotStatePtr start_state = move_group.getCurrentState();
+    robot_current_state.printStateInfo();
+
     move_group.setStartStateToCurrentState();
     move_group.setJointValueTarget(goal_map);
 
