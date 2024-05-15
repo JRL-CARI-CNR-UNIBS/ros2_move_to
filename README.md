@@ -1,4 +1,6 @@
-# ros2_move_to
+### ros2_move_to
 
-**ros2_move_to** contains two packages that allow to execute pre-computed or new trajectories. Refer to the specific packages readme files [here](https://raw.githubusercontent.com/JRL-CARI-CNR-UNIBS/ros2_move_to/master/trajectory_loader/README.md) and [here](https://raw.githubusercontent.com/JRL-CARI-CNR-UNIBS/ros2_move_to/master/trajectory_loader_helper/README.md).
+**ros2_move_to** comprises two packages designed for executing both pre-computed and new trajectories. For detailed information on each package, refer to their respective README files:
 
+- [Trajectory Loader](https://raw.githubusercontent.com/JRL-CARI-CNR-UNIBS/ros2_move_to/master/trajectory_loader/README.md)
+- [Trajectory Loader Helper](https://raw.githubusercontent.com/JRL-CARI-CNR-UNIBS/ros2_move_to/master/trajectory_loader_helper/README.md)
