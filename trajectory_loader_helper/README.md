@@ -1,0 +1,1 @@
+**trajectory_loader_helper** provides a script which allows to save on a yaml file a computed trajectory. This tools is helpful to save trajectories that will then be executed using the `TrajectoryLoaderAction`. The script listens to the topic `/display_planned_path` and write the trajectories published there to `~/.ros/trajectory_loader_helper`.

@@ -419,16 +419,6 @@ private:
               return;
             }
 
-            //            moveit::core::MoveItErrorCode moveit_error_code = move_group.execute(trj);
-            //            if(moveit_error_code != moveit::core::MoveItErrorCode::SUCCESS)
-            //            {
-            //              RCLCPP_ERROR_STREAM(this->get_logger(), "Move group move failed with error code "
-            //                                  <<moveit::core::error_code_to_string(moveit_error_code));
-            //              result->error = "Move group move failed with error code "+moveit::core::error_code_to_string(moveit_error_code);
-            //              goal_handle_->abort(result);
-            //              return;
-            //            }
-
             if(this->goal_handle_->is_canceling())
             {
               RCLCPP_INFO(this->get_logger(),"Goal canceled");
