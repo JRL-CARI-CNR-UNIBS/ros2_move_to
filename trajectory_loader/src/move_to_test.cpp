@@ -171,16 +171,17 @@ int main(int argc, char ** argv)
   geometry_msgs::msg::TransformStamped transform;
   while(not tf_buffer->canTransform(tf,base_frame,tf2::TimePointZero,duration))
   {
-    try {
-      transform = tf_buffer->lookupTransform(
-            tf, base_frame,
-            tf2::TimePointZero);
-    } catch (const tf2::TransformException & ex) {
-      RCLCPP_INFO(
-            node->get_logger(), "Could not transform %s to %s: %s",
-            tf.c_str(), base_frame.c_str(), ex.what());
-      return 1;
-    }
+  }
+
+  try {
+    transform = tf_buffer->lookupTransform(
+          tf, base_frame,
+          tf2::TimePointZero);
+  } catch (const tf2::TransformException & ex) {
+    RCLCPP_INFO(
+          node->get_logger(), "Could not transform %s to %s: %s",
+          tf.c_str(), base_frame.c_str(), ex.what());
+    return 1;
   }
 
   geometry_msgs::msg::PoseStamped pose;
