@@ -34,9 +34,7 @@ int main(int argc, char ** argv)
   std::vector<std::string> trj;
   if(cnr::param::has(ns+"trj_names",w))
   {
-    if(cnr::param::is_sequence(ns+"trj_names"))
-      cnr::param::get(ns+"trj_names",trj,w);
-    else
+    if(not cnr::param::get(ns+"trj_names",trj,w))
     {
       RCLCPP_ERROR(node->get_logger(),"trj_names should be a vector");
       return 1;

@@ -202,7 +202,7 @@ private:
         }
         else
         {
-          if(trj_from_param.points.back().time_from_start == rclcpp::Duration::from_seconds(0.0))
+          if(rclcpp::Duration(trj_from_param.points.back().time_from_start) == rclcpp::Duration::from_seconds(0.0))
             recompute_time_law = true;
         }
 
@@ -498,50 +498,32 @@ private:
       case 0:
         ok = false; //joint names is mandatory
         if(cnr::param::has(ns,w))
-        {
-          if(cnr::param::is_sequence(ns))
-            ok = cnr::param::get(ns,n,w);
-        }
+          ok = cnr::param::get(ns,n,w);
         break;
       case 1:
         ok = true; //time is not mandatory
         if(cnr::param::has(ns,w))
-        {
-          if(cnr::param::is_sequence(ns))
-            ok = cnr::param::get(ns,t,w);
-        }
+          ok = cnr::param::get(ns,t,w);
         break;
       case 2:
         ok = false; //q is mandatory
         if(cnr::param::has(ns,w))
-        {
-          if(cnr::param::is_sequence(ns))
-            ok = cnr::param::get(ns,q,w);
-        }
+          ok = cnr::param::get(ns,q,w);
         break;
       case 3:
         ok = true; //qd is not mandatory
         if(cnr::param::has(ns,w))
-        {
-          if(cnr::param::is_sequence(ns))
-            ok = cnr::param::get(ns,qd,w);
-        }
+          ok = cnr::param::get(ns,qd,w);
         break;
       case 4:
         ok = true; //qdd is not mandatory
         if(cnr::param::has(ns,w))
-        {
-          if(cnr::param::is_sequence(ns))
-            ok = cnr::param::get(ns,qdd,w);
-        }
+          ok = cnr::param::get(ns,qdd,w);
         break;
       case 5:
         ok = true; //effort is not mandatory
         if(cnr::param::has(ns,w))
-        {
-          if(cnr::param::is_sequence(ns))
-            ok = cnr::param::get(ns,eff,w);
-        }
+          ok = cnr::param::get(ns,eff,w);
         break;
       }
       what += (what.length()>0 && w.length()>0 ? "\n" : "") + w;
