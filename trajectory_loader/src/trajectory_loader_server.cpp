@@ -491,39 +491,33 @@ private:
     for(size_t i=0; i<params.size(); i++)
     {
       std::string w;
-      bool ok;
+      bool ok = true;
       std::string ns = "/"+trj_name+"/"+params.at(i);
       switch(i)
       {
       case 0:
-        ok = false; //joint names is mandatory
-        if(cnr::param::has(ns,w))
-          ok = cnr::param::get(ns,n,w);
+        //joint names is mandatory
+        ok = cnr::param::get(ns,n,w);
         break;
       case 1:
-        ok = true; //time is not mandatory
-        if(cnr::param::has(ns,w))
-          ok = cnr::param::get(ns,t,w);
+        //time is not mandatory
+        cnr::param::get(ns,t,w);
         break;
       case 2:
-        ok = false; //q is mandatory
-        if(cnr::param::has(ns,w))
-          ok = cnr::param::get(ns,q,w);
+        //q is mandatory
+        ok = cnr::param::get(ns,q,w);
         break;
       case 3:
-        ok = true; //qd is not mandatory
-        if(cnr::param::has(ns,w))
-          ok = cnr::param::get(ns,qd,w);
+        //qd is not mandatory
+        cnr::param::get(ns,qd,w);
         break;
       case 4:
-        ok = true; //qdd is not mandatory
-        if(cnr::param::has(ns,w))
-          ok = cnr::param::get(ns,qdd,w);
+        //qdd is not mandatory
+        cnr::param::get(ns,qdd,w);
         break;
       case 5:
-        ok = true; //effort is not mandatory
-        if(cnr::param::has(ns,w))
-          ok = cnr::param::get(ns,eff,w);
+        //effort is not mandatory
+        cnr::param::get(ns,eff,w);
         break;
       }
       what += (what.length()>0 && w.length()>0 ? "\n" : "") + w;
