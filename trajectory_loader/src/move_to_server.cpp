@@ -344,16 +344,7 @@ private:
 
     RCLCPP_INFO_STREAM(this->get_logger(),"Choosen ik: "<<best_ik_str);
 
-    std::map<std::string, double> goal_map;
-    for(size_t j=0;j<ik.joint_names.size();j++)
-    {
-      std::pair<std::string, double> p;
-      p.first = ik.joint_names[j];
-      p.second = best_ik[j];
-      goal_map.insert(p);
-    }
-
-    if (!move_group.startStateMonitor())
+    if (!move_group.startStateMonitor(10.0))
     {
       RCLCPP_ERROR(this->get_logger(),"unable to read current state");
       result->error ="unable to read current state";
@@ -361,11 +352,37 @@ private:
       this->clear();
       return;
     }
-    move_group.setStartStateToCurrentState();
-    moveit::core::RobotStatePtr start_state = move_group.getCurrentState();
-    robot_current_state.printStateInfo();
+
+    this->get_clock()->sleep_for(5s);
 
     move_group.setStartStateToCurrentState();
+
+    moveit::core::RobotStatePtr start_state = move_group.getCurrentState();
+    move_group.setStartStateToCurrentState();
+
+    std::vector<std::string> all_joints = move_group.getActiveJoints();
+    moveit::core::RobotStatePtr current_state = move_group.getCurrentState();
+
+    for(auto j: all_joints)
+      RCLCPP_ERROR_STREAM(this->get_logger(),"Joint "<<j<<" value: "<<*current_state->getJointPositions(j));
+
+    std::map<std::string, double> goal_map;
+    for(size_t j=0;j<all_joints.size();j++)
+    {
+      std::pair<std::string, double> p;
+      p.first = all_joints[j];
+
+      auto it = std::find(ik.joint_names.begin(),ik.joint_names.end(),all_joints[j]);
+      if(it != ik.joint_names.end())
+        p.second = best_ik[std::distance(ik.joint_names.begin(),it)];
+      else
+        p.second = *start_state.get()->getJointPositions(p.first);
+
+      goal_map.insert(p);
+
+      RCLCPP_ERROR_STREAM(this->get_logger(),"JOINT: "<<p.first<<" CONF: "<<p.second);
+    }
+
     move_group.setJointValueTarget(goal_map);
 
     robot_trajectory::RobotTrajectory trajectory(move_group.getRobotModel(), goal->group_name);
@@ -381,9 +398,15 @@ private:
 
     moveit_msgs::msg::RobotTrajectory trj;
     trajectory.setRobotTrajectoryMsg(robot_current_state, plan.trajectory_.joint_trajectory);
+
     trajectory_processing::TimeOptimalTrajectoryGeneration trj_processing;
     trj_processing.computeTimeStamps(trajectory);
     trajectory.getRobotTrajectoryMsg(trj);
+    RCLCPP_WARN_STREAM(this->get_logger(),"JOINTSASSSSSSSSSSSS ");
+
+    for(auto n:trj.joint_trajectory.joint_names)
+      RCLCPP_WARN_STREAM(this->get_logger(),"joint "<<n);
+
 
     RCLCPP_INFO_STREAM(this->get_logger(),"Trajectory "<<trajectory);
 
@@ -420,15 +443,15 @@ private:
         return;
       }
 
-//      moveit::core::MoveItErrorCode moveit_error_code = move_group.execute(trj);
-//      if(moveit_error_code != moveit::core::MoveItErrorCode::SUCCESS)
-//      {
-//        RCLCPP_ERROR_STREAM(this->get_logger(), "Move group move failed with error code "
-//                            <<moveit::core::error_code_to_string(moveit_error_code));
-//        result->error = "Move group move failed with error code "+moveit::core::error_code_to_string(moveit_error_code);
-//        goal_handle_->abort(result);
-//        return;
-//      }
+      //      moveit::core::MoveItErrorCode moveit_error_code = move_group.execute(trj);
+      //      if(moveit_error_code != moveit::core::MoveItErrorCode::SUCCESS)
+      //      {
+      //        RCLCPP_ERROR_STREAM(this->get_logger(), "Move group move failed with error code "
+      //                            <<moveit::core::error_code_to_string(moveit_error_code));
+      //        result->error = "Move group move failed with error code "+moveit::core::error_code_to_string(moveit_error_code);
+      //        goal_handle_->abort(result);
+      //        return;
+      //      }
 
       if(this->goal_handle_->is_canceling())
       {
@@ -545,6 +568,9 @@ int main(int argc, char ** argv)
   rclcpp::executors::MultiThreadedExecutor executor;
   executor.add_node(node);
   executor.spin();
+
+//  auto spinner = new std::thread([&executor]() { executor.spin();});
+//  spinner->join();
 
   rclcpp::shutdown();
 
