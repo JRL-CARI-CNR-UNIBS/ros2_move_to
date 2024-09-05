@@ -28,20 +28,15 @@ class MoveToServer : public rclcpp::Node
 {
 public:
   explicit MoveToServer(const rclcpp::NodeOptions & node_options = rclcpp::NodeOptions().automatically_declare_parameters_from_overrides(true))
-    : Node("move_to_server", node_options)
+    : Node("move_to_server", node_options), internal_node_(std::make_shared<rclcpp::Node>("__move_to_internal_node")),
+      executor_(std::make_shared<rclcpp::executors::MultiThreadedExecutor>(rclcpp::ExecutorOptions(),2))
   {
-    this->action_server_ = rclcpp_action::create_server<trajectory_loader::action::MoveToAction>(
-          this,"move_to",
-          std::bind(&MoveToServer::handle_goal, this, std::placeholders::_1, std::placeholders::_2),
-          std::bind(&MoveToServer::handle_cancel, this, std::placeholders::_1),
-          std::bind(&MoveToServer::handle_accepted, this, std::placeholders::_1));
-
     // Subscribe to the available /get_ik services
     std::vector<std::string> ik_services;
     rclcpp::Rate rate(100);
     while(ik_services.empty())
     {
-      RCLCPP_INFO(this->get_logger(),"Waiting for /get_ik services");
+      RCLCPP_DEBUG(this->get_logger(),"Waiting for /get_ik services");
       this->getAvailableIkService(ik_services);
       rate.sleep();
     }
@@ -51,17 +46,17 @@ public:
     for(const std::string& service: ik_services)
     {
       p.first = service;
-      p.second = this->create_client<ik_solver_msgs::srv::GetIk>(p.first);
+      p.second = internal_node_->create_client<ik_solver_msgs::srv::GetIk>(p.first);
 
       this->ik_client_map_.insert(p);
 
       RCLCPP_WARN_STREAM(this->get_logger(),"  -"<<service<<"\n");
     }
 
-    this->display_trj_pub_ = this->create_publisher<moveit_msgs::msg::DisplayTrajectory>("/simulated_trajectory",1);
+    this->display_trj_pub_ = internal_node_->create_publisher<moveit_msgs::msg::DisplayTrajectory>("/simulated_trajectory",1);
 
     // Get robot_description
-    rclcpp::SyncParametersClient::SharedPtr parameters_client = std::make_shared<rclcpp::SyncParametersClient>(this, std::string("/move_group"));
+    rclcpp::SyncParametersClient::SharedPtr parameters_client = std::make_shared<rclcpp::SyncParametersClient>(internal_node_, std::string("/move_group"));
     while (!parameters_client->wait_for_service(1s))
     {
       if (!rclcpp::ok())
@@ -80,10 +75,10 @@ public:
     std::string robot_description = parameters_client->get_parameter<std::string>(param_name);
 
     rclcpp::Parameter robot_description_param(param_name,robot_description);
-    this->declare_parameter(param_name, rclcpp::PARAMETER_STRING);
-    this->set_parameter(robot_description_param);
+    internal_node_->declare_parameter(param_name, rclcpp::PARAMETER_STRING);
+    internal_node_->set_parameter(robot_description_param);
 
-    if(not this->has_parameter(param_name))
+    if(not internal_node_->has_parameter(param_name))
       throw std::runtime_error("no robot description");
     else
       RCLCPP_WARN(this->get_logger(),"robot description loaded");
@@ -92,20 +87,38 @@ public:
     std::string robot_description_semantic = parameters_client->get_parameter<std::string>(param_name);
 
     rclcpp::Parameter robot_description_semantic_param(param_name,robot_description_semantic);
-    this->declare_parameter(param_name, rclcpp::PARAMETER_STRING);
-    this->set_parameter(robot_description_semantic_param);
+    internal_node_->declare_parameter(param_name, rclcpp::PARAMETER_STRING);
+    internal_node_->set_parameter(robot_description_semantic_param);
 
-    if(not this->has_parameter(param_name))
+    if(not internal_node_->has_parameter(param_name))
       throw std::runtime_error("no robot description semantic");
     else
       RCLCPP_WARN(this->get_logger(),"robot description semantic loaded");
+
+    executor_->add_node(internal_node_);
+    executor_thread_ = std::thread([this]() {executor_->spin(); });
+
+    this->action_server_ = rclcpp_action::create_server<trajectory_loader::action::MoveToAction>(
+          this,"move_to",
+          std::bind(&MoveToServer::handle_goal, this, std::placeholders::_1, std::placeholders::_2),
+          std::bind(&MoveToServer::handle_cancel, this, std::placeholders::_1),
+          std::bind(&MoveToServer::handle_accepted, this, std::placeholders::_1));
+  }
+
+  ~MoveToServer()
+  {
+    executor_thread_.join();
   }
 
 private:
   bool fjt_error_;
   bool fjt_finished_;
   bool ik_response_received_;
+
+  std::thread executor_thread_;
+  rclcpp::Node::SharedPtr internal_node_;
   ik_solver_msgs::srv::GetIk::Response::SharedPtr ik_response_;
+  rclcpp::executors::MultiThreadedExecutor::SharedPtr executor_;
   rclcpp::Publisher<std_msgs::msg::Int16>::SharedPtr scaling_pub_;
   rclcpp::Publisher<moveit_msgs::msg::DisplayTrajectory>::SharedPtr display_trj_pub_;
   rclcpp_action::Server<trajectory_loader::action::MoveToAction>::SharedPtr action_server_;
@@ -211,8 +224,8 @@ private:
     result->ok = false;
     const auto goal = this->goal_handle_->get_goal();
 
-    this->action_client_ = rclcpp_action::create_client<control_msgs::action::FollowJointTrajectory>(this,goal->fjt_action_name);
-    this->scaling_pub_ = this->create_publisher<std_msgs::msg::Int16>(goal->speed_scaling_topic,1);
+    this->action_client_ = rclcpp_action::create_client<control_msgs::action::FollowJointTrajectory>(internal_node_,goal->fjt_action_name);
+    this->scaling_pub_ = internal_node_->create_publisher<std_msgs::msg::Int16>(goal->speed_scaling_topic,1);
 
     if(!this->action_client_->wait_for_action_server())
     {
@@ -275,16 +288,7 @@ private:
 
     bool success;
     moveit::planning_interface::MoveGroupInterface::Plan plan;
-    moveit::planning_interface::MoveGroupInterface move_group(this->shared_from_this(),goal->group_name);
-
-    if (!move_group.startStateMonitor())
-    {
-      RCLCPP_ERROR(this->get_logger(),"unable to read current state");
-      result->error ="unable to read current state";
-      this->goal_handle_->abort(result);
-      this->clear();
-      return;
-    }
+    moveit::planning_interface::MoveGroupInterface move_group(internal_node_,goal->group_name);
 
     if(this->goal_handle_->is_canceling())
     {
@@ -326,6 +330,15 @@ private:
     }
 
     RCLCPP_INFO_STREAM(this->get_logger(),"Waiting for robot current state");
+    if (!move_group.startStateMonitor(10.0))
+    {
+      RCLCPP_ERROR(this->get_logger(),"unable to read current state");
+      result->error ="unable to read current state";
+      this->goal_handle_->abort(result);
+      this->clear();
+      return;
+    }
+
     moveit::core::RobotState robot_current_state = *move_group.getCurrentState();
     std::vector<double> current_configuration;
     for(const std::string& j:ik.joint_names)
@@ -344,22 +357,7 @@ private:
 
     RCLCPP_INFO_STREAM(this->get_logger(),"Choosen ik: "<<best_ik_str);
 
-    if (!move_group.startStateMonitor(10.0))
-    {
-      RCLCPP_ERROR(this->get_logger(),"unable to read current state");
-      result->error ="unable to read current state";
-      this->goal_handle_->abort(result);
-      this->clear();
-      return;
-    }
-
-    this->get_clock()->sleep_for(5s);
-
-    move_group.setStartStateToCurrentState();
-
     moveit::core::RobotStatePtr start_state = move_group.getCurrentState();
-    move_group.setStartStateToCurrentState();
-
     std::vector<std::string> all_joints = move_group.getActiveJoints();
     moveit::core::RobotStatePtr current_state = move_group.getCurrentState();
 
@@ -565,13 +563,7 @@ int main(int argc, char ** argv)
   node_options.automatically_declare_parameters_from_overrides(true);
   auto node = std::make_shared<MoveToServer>(node_options);
 
-  rclcpp::executors::MultiThreadedExecutor executor;
-  executor.add_node(node);
-  executor.spin();
-
-//  auto spinner = new std::thread([&executor]() { executor.spin();});
-//  spinner->join();
-
+  rclcpp::spin(node);
   rclcpp::shutdown();
 
   return 0;
