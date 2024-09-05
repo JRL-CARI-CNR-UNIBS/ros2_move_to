@@ -30,12 +30,6 @@ public:
   explicit MoveToServer(const rclcpp::NodeOptions & node_options = rclcpp::NodeOptions().automatically_declare_parameters_from_overrides(true))
     : Node("move_to_server", node_options)
   {
-    this->action_server_ = rclcpp_action::create_server<trajectory_loader::action::MoveToAction>(
-          this,"move_to",
-          std::bind(&MoveToServer::handle_goal, this, std::placeholders::_1, std::placeholders::_2),
-          std::bind(&MoveToServer::handle_cancel, this, std::placeholders::_1),
-          std::bind(&MoveToServer::handle_accepted, this, std::placeholders::_1));
-
     // Subscribe to the available /get_ik services
     std::vector<std::string> ik_services;
     rclcpp::Rate rate(100);
@@ -99,6 +93,13 @@ public:
       throw std::runtime_error("no robot description semantic");
     else
       RCLCPP_WARN(this->get_logger(),"robot description semantic loaded");
+
+    this->action_server_ = rclcpp_action::create_server<trajectory_loader::action::MoveToAction>(
+          this,"move_to",
+          std::bind(&MoveToServer::handle_goal, this, std::placeholders::_1, std::placeholders::_2),
+          std::bind(&MoveToServer::handle_cancel, this, std::placeholders::_1),
+          std::bind(&MoveToServer::handle_accepted, this, std::placeholders::_1));
+
   }
 
 private:
@@ -145,6 +146,8 @@ private:
 
   bool getIk(const std::string& ik_service, const geometry_msgs::msg::PoseStamped& pose, Ik& ik)
   {
+    RCLCPP_INFO(this->get_logger(), "computing IK");
+
     auto req = std::make_shared<ik_solver_msgs::srv::GetIk::Request>();
     ik_solver_msgs::msg::IkTarget target;
     target.pose = pose;
@@ -171,6 +174,9 @@ private:
       RCLCPP_ERROR(this->get_logger(), "Ik service failed");
       return false;
     }
+
+    RCLCPP_INFO(this->get_logger(), "computed IK");
+
     return true;
   }
 
@@ -199,12 +205,16 @@ private:
 
     best_ik.resize(best_conf.size());
     Eigen::Map<Eigen::VectorXd>(best_ik.data(), best_ik.size()) = best_conf;
+    RCLCPP_INFO_STREAM(get_logger(), "choosed IK with distance = " << min_distance);
 
     return true;
   }
 
   void move_to()
   {
+
+    RCLCPP_INFO(get_logger(), "start move_to");
+
     auto result = std::make_shared<trajectory_loader::action::MoveToAction::Result>();
     auto feedback = std::make_shared<trajectory_loader::action::MoveToAction::Feedback>();
 
@@ -213,6 +223,8 @@ private:
 
     this->action_client_ = rclcpp_action::create_client<control_msgs::action::FollowJointTrajectory>(this,goal->fjt_action_name);
     this->scaling_pub_ = this->create_publisher<std_msgs::msg::Int16>(goal->speed_scaling_topic,1);
+
+    RCLCPP_INFO(get_logger(), "wait_for_action_server");
 
     if(!this->action_client_->wait_for_action_server())
     {
@@ -253,7 +265,7 @@ private:
     summary = summary+" - simulation: "+(goal->simulation? "true": "false")+"\n";
     summary = summary+" - pose:\n"+geometry_msgs::msg::to_yaml(goal->pose)+"\n";
 
-    RCLCPP_WARN_STREAM(this->get_logger(),summary);
+    RCLCPP_WARN_STREAM(get_logger(),summary);
 
     this->scaling_pub_->publish(scaling);
 
@@ -272,11 +284,20 @@ private:
       this->clear();
       return;
     }
+    RCLCPP_WARN_STREAM(get_logger(),"QUI QUI QUI QUI");
 
     bool success;
     moveit::planning_interface::MoveGroupInterface::Plan plan;
-    moveit::planning_interface::MoveGroupInterface move_group(this->shared_from_this(),goal->group_name);
+    RCLCPP_WARN_STREAM(get_logger(),"QUI QUI QUI QUI");
+    moveit::planning_interface::MoveGroupInterface move_group(shared_from_this(),goal->group_name);
+    RCLCPP_WARN_STREAM(get_logger(),"QUI QUI QUI QUI");
 
+//    rclcpp::Node::SharedPtr aux_node;
+//    aux_node = std::make_shared<rclcpp::Node>("aux_node");
+//    moveit::planning_interface::MoveGroupInterface move_group(aux_node,goal->group_name);
+//    moveit::planning_interface::MoveGroupInterface move_group(this,goal->group_name);
+
+    RCLCPP_WARN_STREAM(get_logger(),"QUI QUI QUI QUI");
     if (!move_group.startStateMonitor())
     {
       RCLCPP_ERROR(this->get_logger(),"unable to read current state");
@@ -286,6 +307,7 @@ private:
       return;
     }
 
+    RCLCPP_WARN_STREAM(get_logger(),"QUI QUI QUI QUI");
     if(this->goal_handle_->is_canceling())
     {
       RCLCPP_INFO(this->get_logger(),"Goal canceled");
@@ -295,7 +317,12 @@ private:
       return;
     }
 
+    RCLCPP_WARN_STREAM(get_logger(),"QUI QUI QUI QUI");
+    RCLCPP_INFO(get_logger(), "getting IK");
+
     Ik ik;
+    RCLCPP_WARN_STREAM(get_logger(),"QUI QUI QUI QUI");
+
     if(not this->getIk(goal->ik_service_name,goal->pose,ik))
     {
       RCLCPP_ERROR(this->get_logger(),"Ik not available");
@@ -304,6 +331,10 @@ private:
       this->clear();
       return;
     }
+    RCLCPP_WARN_STREAM(get_logger(),"QUI QUI QUI QUI");
+
+
+    RCLCPP_WARN_STREAM(get_logger(),"QUI QUI QUI QUI");
 
     if(ik.configurations.size()!=0)
       RCLCPP_INFO_STREAM(this->get_logger(),ik.configurations.size()<<" ik available");
@@ -315,6 +346,10 @@ private:
       this->clear();
       return;
     }
+    RCLCPP_WARN_STREAM(get_logger(),"QUI QUI QUI QUI");
+
+
+    RCLCPP_INFO(get_logger(), "get IK");
 
     if(this->goal_handle_->is_canceling())
     {
@@ -325,6 +360,9 @@ private:
       return;
     }
 
+    RCLCPP_WARN_STREAM(get_logger(),"QUI QUI QUI QUI");
+
+
     RCLCPP_INFO_STREAM(this->get_logger(),"Waiting for robot current state");
     moveit::core::RobotState robot_current_state = *move_group.getCurrentState();
     std::vector<double> current_configuration;
@@ -334,6 +372,7 @@ private:
       current_configuration.push_back(d);
     }
     RCLCPP_INFO_STREAM(this->get_logger(),"Current configuration read");
+    RCLCPP_WARN_STREAM(get_logger(),"QUI QUI QUI QUI");
 
     std::vector<double> best_ik;
     this->chooseIk(ik,current_configuration,best_ik);
@@ -343,6 +382,7 @@ private:
       best_ik_str = best_ik_str + std::to_string(d)+" ";
 
     RCLCPP_INFO_STREAM(this->get_logger(),"Choosen ik: "<<best_ik_str);
+    RCLCPP_WARN_STREAM(get_logger(),"QUI QUI QUI QUI");
 
     if (!move_group.startStateMonitor(10.0))
     {
@@ -352,8 +392,11 @@ private:
       this->clear();
       return;
     }
+    RCLCPP_WARN_STREAM(get_logger(),"QUI QUI QUI QUI");
 
-    this->get_clock()->sleep_for(5s);
+
+//    this->get_clock()->sleep_for(5s);
+    RCLCPP_WARN_STREAM(get_logger(),"QUI QUI QUI QUI");
 
     move_group.setStartStateToCurrentState();
 
@@ -362,6 +405,7 @@ private:
 
     std::vector<std::string> all_joints = move_group.getActiveJoints();
     moveit::core::RobotStatePtr current_state = move_group.getCurrentState();
+    RCLCPP_WARN_STREAM(get_logger(),"QUI QUI QUI QUI");
 
     for(auto j: all_joints)
       RCLCPP_ERROR_STREAM(this->get_logger(),"Joint "<<j<<" value: "<<*current_state->getJointPositions(j));
@@ -477,6 +521,8 @@ private:
 
     this->clear();
 
+    RCLCPP_WARN_STREAM(get_logger(),"QUI QUI QUI QUI");
+
     return;
   }
 
@@ -563,7 +609,7 @@ int main(int argc, char ** argv)
 
   rclcpp::NodeOptions node_options;
   node_options.automatically_declare_parameters_from_overrides(true);
-  auto node = std::make_shared<MoveToServer>(node_options);
+  rclcpp::Node::SharedPtr node = std::make_shared<MoveToServer>(node_options);
 
   rclcpp::executors::MultiThreadedExecutor executor;
   executor.add_node(node);

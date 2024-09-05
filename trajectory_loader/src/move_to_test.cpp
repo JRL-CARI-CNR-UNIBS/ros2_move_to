@@ -167,11 +167,18 @@ int main(int argc, char ** argv)
   auto tf_buffer = std::make_unique<tf2_ros::Buffer>(node->get_clock());
   auto tf_listener = std::make_shared<tf2_ros::TransformListener>(*tf_buffer);
 
-  tf2::Duration duration(10000000000);
   geometry_msgs::msg::TransformStamped transform;
-  while(not tf_buffer->canTransform(tf,base_frame,tf2::TimePointZero,duration))
+  int iter = 0;
+  while(not tf_buffer->canTransform(tf,base_frame,tf2::TimePointZero,tf2::durationFromSec(1.0)))
   {
+    if(iter>=100)
+    {
+      RCLCPP_INFO(node->get_logger(), "Transform from %s to %s not available",tf.c_str(), base_frame.c_str());
+      return 1;
+    }
+    iter++;
   }
+
 
   try {
     transform = tf_buffer->lookupTransform(
