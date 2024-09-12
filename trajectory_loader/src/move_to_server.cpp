@@ -33,9 +33,11 @@ public:
     // Subscribe to the available /get_ik services
     std::vector<std::string> ik_services;
     rclcpp::Rate rate(100);
+
     while(ik_services.empty())
     {
-      RCLCPP_INFO(this->get_logger(),"Waiting for /get_ik services");
+      RCLCPP_DEBUG_THROTTLE(this->get_logger(),*this->get_clock(),1000,"Waiting for /get_ik services");
+
       this->getAvailableIkService(ik_services);
       rate.sleep();
     }
@@ -99,9 +101,7 @@ public:
           std::bind(&MoveToServer::handle_goal, this, std::placeholders::_1, std::placeholders::_2),
           std::bind(&MoveToServer::handle_cancel, this, std::placeholders::_1),
           std::bind(&MoveToServer::handle_accepted, this, std::placeholders::_1));
-
   }
-
 private:
   bool fjt_error_;
   bool fjt_finished_;
@@ -284,30 +284,11 @@ private:
       this->clear();
       return;
     }
-    RCLCPP_WARN_STREAM(get_logger(),"QUI QUI QUI QUI");
 
     bool success;
     moveit::planning_interface::MoveGroupInterface::Plan plan;
-    RCLCPP_WARN_STREAM(get_logger(),"QUI QUI QUI QUI");
     moveit::planning_interface::MoveGroupInterface move_group(shared_from_this(),goal->group_name);
-    RCLCPP_WARN_STREAM(get_logger(),"QUI QUI QUI QUI");
 
-//    rclcpp::Node::SharedPtr aux_node;
-//    aux_node = std::make_shared<rclcpp::Node>("aux_node");
-//    moveit::planning_interface::MoveGroupInterface move_group(aux_node,goal->group_name);
-//    moveit::planning_interface::MoveGroupInterface move_group(this,goal->group_name);
-
-    RCLCPP_WARN_STREAM(get_logger(),"QUI QUI QUI QUI");
-    if (!move_group.startStateMonitor())
-    {
-      RCLCPP_ERROR(this->get_logger(),"unable to read current state");
-      result->error ="unable to read current state";
-      this->goal_handle_->abort(result);
-      this->clear();
-      return;
-    }
-
-    RCLCPP_WARN_STREAM(get_logger(),"QUI QUI QUI QUI");
     if(this->goal_handle_->is_canceling())
     {
       RCLCPP_INFO(this->get_logger(),"Goal canceled");
@@ -317,12 +298,7 @@ private:
       return;
     }
 
-    RCLCPP_WARN_STREAM(get_logger(),"QUI QUI QUI QUI");
-    RCLCPP_INFO(get_logger(), "getting IK");
-
     Ik ik;
-    RCLCPP_WARN_STREAM(get_logger(),"QUI QUI QUI QUI");
-
     if(not this->getIk(goal->ik_service_name,goal->pose,ik))
     {
       RCLCPP_ERROR(this->get_logger(),"Ik not available");
@@ -331,10 +307,6 @@ private:
       this->clear();
       return;
     }
-    RCLCPP_WARN_STREAM(get_logger(),"QUI QUI QUI QUI");
-
-
-    RCLCPP_WARN_STREAM(get_logger(),"QUI QUI QUI QUI");
 
     if(ik.configurations.size()!=0)
       RCLCPP_INFO_STREAM(this->get_logger(),ik.configurations.size()<<" ik available");
@@ -346,10 +318,6 @@ private:
       this->clear();
       return;
     }
-    RCLCPP_WARN_STREAM(get_logger(),"QUI QUI QUI QUI");
-
-
-    RCLCPP_INFO(get_logger(), "get IK");
 
     if(this->goal_handle_->is_canceling())
     {
@@ -360,19 +328,31 @@ private:
       return;
     }
 
-    RCLCPP_WARN_STREAM(get_logger(),"QUI QUI QUI QUI");
+    RCLCPP_INFO(this->get_logger(),"Starting state monitor");
+    if (!move_group.startStateMonitor())
+    {
+      RCLCPP_ERROR(this->get_logger(),"unable to read current state");
+      result->error ="unable to read current state";
+      this->goal_handle_->abort(result);
+      this->clear();
+      return;
+    }
 
-
-    RCLCPP_INFO_STREAM(this->get_logger(),"Waiting for robot current state");
-    moveit::core::RobotState robot_current_state = *move_group.getCurrentState();
+    RCLCPP_INFO(this->get_logger(),"Waiting for robot current state");
+    moveit::core::RobotStatePtr robot_current_state = move_group.getCurrentState();
     std::vector<double> current_configuration;
     for(const std::string& j:ik.joint_names)
     {
-      double d = *robot_current_state.getJointPositions(j);
+      double d = *robot_current_state->getJointPositions(j);
       current_configuration.push_back(d);
     }
-    RCLCPP_INFO_STREAM(this->get_logger(),"Current configuration read");
-    RCLCPP_WARN_STREAM(get_logger(),"QUI QUI QUI QUI");
+
+    std::string txt_current_state = "Current configuration read:";
+    std::vector<std::string> all_joints = move_group.getActiveJoints();
+    for(auto j: all_joints)
+      txt_current_state = txt_current_state+"\n\t- Joint: "+std::to_string(j)+" -> "+std::to_string(*robot_current_state->getJointPositions(j));
+
+    RCLCPP_INFO_STREAM(this->get_logger(),txt_current_state);
 
     std::vector<double> best_ik;
     this->chooseIk(ik,current_configuration,best_ik);
@@ -384,32 +364,6 @@ private:
     RCLCPP_INFO_STREAM(this->get_logger(),"Choosen ik: "<<best_ik_str);
     RCLCPP_WARN_STREAM(get_logger(),"QUI QUI QUI QUI");
 
-    if (!move_group.startStateMonitor(10.0))
-    {
-      RCLCPP_ERROR(this->get_logger(),"unable to read current state");
-      result->error ="unable to read current state";
-      this->goal_handle_->abort(result);
-      this->clear();
-      return;
-    }
-    RCLCPP_WARN_STREAM(get_logger(),"QUI QUI QUI QUI");
-
-
-//    this->get_clock()->sleep_for(5s);
-    RCLCPP_WARN_STREAM(get_logger(),"QUI QUI QUI QUI");
-
-    move_group.setStartStateToCurrentState();
-
-    moveit::core::RobotStatePtr start_state = move_group.getCurrentState();
-    move_group.setStartStateToCurrentState();
-
-    std::vector<std::string> all_joints = move_group.getActiveJoints();
-    moveit::core::RobotStatePtr current_state = move_group.getCurrentState();
-    RCLCPP_WARN_STREAM(get_logger(),"QUI QUI QUI QUI");
-
-    for(auto j: all_joints)
-      RCLCPP_ERROR_STREAM(this->get_logger(),"Joint "<<j<<" value: "<<*current_state->getJointPositions(j));
-
     std::map<std::string, double> goal_map;
     for(size_t j=0;j<all_joints.size();j++)
     {
@@ -420,11 +374,9 @@ private:
       if(it != ik.joint_names.end())
         p.second = best_ik[std::distance(ik.joint_names.begin(),it)];
       else
-        p.second = *start_state.get()->getJointPositions(p.first);
+        p.second = *robot_current_state.get()->getJointPositions(p.first); //if the joint is not considered by the ik solver, keep it at its current position
 
       goal_map.insert(p);
-
-      RCLCPP_ERROR_STREAM(this->get_logger(),"JOINT: "<<p.first<<" CONF: "<<p.second);
     }
 
     move_group.setJointValueTarget(goal_map);
@@ -441,16 +393,11 @@ private:
     }
 
     moveit_msgs::msg::RobotTrajectory trj;
-    trajectory.setRobotTrajectoryMsg(robot_current_state, plan.trajectory_.joint_trajectory);
+    trajectory.setRobotTrajectoryMsg(*robot_current_state, plan.trajectory_.joint_trajectory);
 
     trajectory_processing::TimeOptimalTrajectoryGeneration trj_processing;
     trj_processing.computeTimeStamps(trajectory);
     trajectory.getRobotTrajectoryMsg(trj);
-    RCLCPP_WARN_STREAM(this->get_logger(),"JOINTSASSSSSSSSSSSS ");
-
-    for(auto n:trj.joint_trajectory.joint_names)
-      RCLCPP_WARN_STREAM(this->get_logger(),"joint "<<n);
-
 
     RCLCPP_INFO_STREAM(this->get_logger(),"Trajectory "<<trajectory);
 
@@ -611,13 +558,7 @@ int main(int argc, char ** argv)
   node_options.automatically_declare_parameters_from_overrides(true);
   rclcpp::Node::SharedPtr node = std::make_shared<MoveToServer>(node_options);
 
-  rclcpp::executors::MultiThreadedExecutor executor;
-  executor.add_node(node);
-  executor.spin();
-
-//  auto spinner = new std::thread([&executor]() { executor.spin();});
-//  spinner->join();
-
+  rclcpp::spin(node);
   rclcpp::shutdown();
 
   return 0;
