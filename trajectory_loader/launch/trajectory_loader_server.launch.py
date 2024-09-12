@@ -30,7 +30,6 @@ def generate_launch_description():
       output="screen",
       namespace="",
       # prefix=['gdb -ex=r --args'],
-      ros_arguments=["--log-level", "info"],
-      parameters=[{"use_sim_time": True}]
+      ros_arguments=["--log-level", "info"]
     )
 ])

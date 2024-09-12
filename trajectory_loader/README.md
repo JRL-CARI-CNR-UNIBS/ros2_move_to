@@ -17,7 +17,7 @@ This action allows you to load and execute a pre-computed trajectory. The action
 - **`bool recompute_time_law`**: If true, the time-law is re-computed based on the list of joint configurations. This also occurs if the trajectory parameter contains only the list of joint configurations.
 - **`bool simulation`**: If true, the trajectory is only displayed.
 
-#### Note
+- #### Note
 If the robot's current configuration does not match the first point of the trajectory, a trajectory is computed with MoveIt to move the robot to the start point.
 
 ### 2. `MoveToAction`
@@ -34,5 +34,17 @@ This action allows the robot to move to a specified pose. The action server requ
 
 ## Examples
 Check the `launch` folder for examples on how to launch the action servers.
+
+⚠️ **Please note** that if you launch these nodes using a namespace, you must remap the  `/joint_states` topic as follows:
+```py
+Node(
+    package="trajectory_loader",
+    executable="move_to_server",
+    output="screen",
+    namespace="my_namespace",
+    ros_arguments=["--log-level", "info"],
+    remappings=[("/my_namespace/joint_states", "/joint_states")] #remapping
+    )
+```
 
 For more details on the actions and parameters, refer to the source code and the included examples.

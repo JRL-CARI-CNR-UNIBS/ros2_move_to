@@ -16,7 +16,7 @@ def generate_launch_description():
       output="screen",
       namespace="kuka_trajectory_loader",
       ros_arguments=["--log-level", "info"],
-      parameters=[{"use_sim_time": True}]
+      remappings=[("/kuka_trajectory_loader/joint_states", "/joint_states")]
     ),
 
     Node(
@@ -25,6 +25,6 @@ def generate_launch_description():
       output="screen",
       namespace="comau_trajectory_loader",
       ros_arguments=["--log-level", "info"],
-      parameters=[{"use_sim_time": True}]
+      remappings=[("/comau_trajectory_loader/joint_states", "/joint_states")]
     )
 ])
