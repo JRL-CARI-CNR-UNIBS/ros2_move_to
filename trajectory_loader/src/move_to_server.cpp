@@ -146,8 +146,6 @@ private:
 
   bool getIk(const std::string& ik_service, const geometry_msgs::msg::PoseStamped& pose, Ik& ik)
   {
-    RCLCPP_INFO(this->get_logger(), "computing IK");
-
     auto req = std::make_shared<ik_solver_msgs::srv::GetIk::Request>();
     ik_solver_msgs::msg::IkTarget target;
     target.pose = pose;
@@ -174,9 +172,6 @@ private:
       RCLCPP_ERROR(this->get_logger(), "Ik service failed");
       return false;
     }
-
-    RCLCPP_INFO(this->get_logger(), "computed IK");
-
     return true;
   }
 
@@ -205,16 +200,13 @@ private:
 
     best_ik.resize(best_conf.size());
     Eigen::Map<Eigen::VectorXd>(best_ik.data(), best_ik.size()) = best_conf;
-    RCLCPP_INFO_STREAM(get_logger(), "choosed IK with distance = " << min_distance);
+    RCLCPP_INFO_STREAM(get_logger(), "Selected ik has distance = " << min_distance);
 
     return true;
   }
 
   void move_to()
   {
-
-    RCLCPP_INFO(get_logger(), "start move_to");
-
     auto result = std::make_shared<trajectory_loader::action::MoveToAction::Result>();
     auto feedback = std::make_shared<trajectory_loader::action::MoveToAction::Feedback>();
 
@@ -223,8 +215,6 @@ private:
 
     this->action_client_ = rclcpp_action::create_client<control_msgs::action::FollowJointTrajectory>(this,goal->fjt_action_name);
     this->scaling_pub_ = this->create_publisher<std_msgs::msg::Int16>(goal->speed_scaling_topic,1);
-
-    RCLCPP_INFO(get_logger(), "wait_for_action_server");
 
     if(!this->action_client_->wait_for_action_server())
     {
@@ -265,7 +255,7 @@ private:
     summary = summary+" - simulation: "+(goal->simulation? "true": "false")+"\n";
     summary = summary+" - pose:\n"+geometry_msgs::msg::to_yaml(goal->pose)+"\n";
 
-    RCLCPP_WARN_STREAM(get_logger(),summary);
+    RCLCPP_WARN_STREAM(this->get_logger(),summary);
 
     this->scaling_pub_->publish(scaling);
 
@@ -287,7 +277,7 @@ private:
 
     bool success;
     moveit::planning_interface::MoveGroupInterface::Plan plan;
-    moveit::planning_interface::MoveGroupInterface move_group(shared_from_this(),goal->group_name);
+    moveit::planning_interface::MoveGroupInterface move_group(this->shared_from_this(),goal->group_name);
 
     if(this->goal_handle_->is_canceling())
     {
@@ -362,7 +352,6 @@ private:
       best_ik_str = best_ik_str + std::to_string(d)+" ";
 
     RCLCPP_INFO_STREAM(this->get_logger(),"Choosen ik: "<<best_ik_str);
-    RCLCPP_WARN_STREAM(get_logger(),"QUI QUI QUI QUI");
 
     std::map<std::string, double> goal_map;
     for(size_t j=0;j<all_joints.size();j++)
@@ -468,8 +457,6 @@ private:
 
     this->clear();
 
-    RCLCPP_WARN_STREAM(get_logger(),"QUI QUI QUI QUI");
-
     return;
   }
 
@@ -556,7 +543,7 @@ int main(int argc, char ** argv)
 
   rclcpp::NodeOptions node_options;
   node_options.automatically_declare_parameters_from_overrides(true);
-  rclcpp::Node::SharedPtr node = std::make_shared<MoveToServer>(node_options);
+  auto node = std::make_shared<MoveToServer>(node_options);
 
   rclcpp::spin(node);
   rclcpp::shutdown();
