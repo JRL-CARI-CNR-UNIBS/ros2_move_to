@@ -27,8 +27,8 @@ using namespace std::chrono_literals;
 class MoveToServer : public rclcpp::Node
 {
 public:
-  explicit MoveToServer(const rclcpp::Node::SharedPtr& internal_node, const rclcpp::NodeOptions & node_options = rclcpp::NodeOptions().automatically_declare_parameters_from_overrides(true))
-    : Node("move_to_server", node_options), move_group_node_(internal_node)
+  explicit MoveToServer(const rclcpp::NodeOptions & node_options = rclcpp::NodeOptions().automatically_declare_parameters_from_overrides(true))
+    : Node("move_to_server", node_options)
   {
     // Subscribe to the available /get_ik services
     std::vector<std::string> ik_services;
@@ -56,27 +56,57 @@ public:
 
     this->display_trj_pub_ = this->create_publisher<moveit_msgs::msg::DisplayTrajectory>("/simulated_trajectory",1);
 
+    // Get robot_description
+    rclcpp::SyncParametersClient::SharedPtr parameters_client = std::make_shared<rclcpp::SyncParametersClient>(this, std::string("/move_group"));
+    while (!parameters_client->wait_for_service(1s))
+    {
+      if (!rclcpp::ok())
+      {
+        RCLCPP_ERROR(this->get_logger(), "Interrupted while waiting for the service. Exiting.");
+        rclcpp::shutdown();
+      }
+      RCLCPP_INFO(this->get_logger(), "service not available, waiting again...");
+    }
+    if(not parameters_client->has_parameter("robot_description"))
+      RCLCPP_ERROR(this->get_logger(), "Cannot find robot_description parameter");
+    if(not parameters_client->has_parameter("robot_description_semantic"))
+      RCLCPP_ERROR(this->get_logger(), "Cannot find robot_description_semantic parameter");
+
+    std::string param_name = "robot_description";
+    std::string robot_description = parameters_client->get_parameter<std::string>(param_name);
+
+    rclcpp::Parameter robot_description_param(param_name,robot_description);
+    this->declare_parameter(param_name, rclcpp::PARAMETER_STRING);
+    this->set_parameter(robot_description_param);
+
+    if(not this->has_parameter(param_name))
+      throw std::runtime_error("no robot description");
+    else
+      RCLCPP_WARN(this->get_logger(),"robot description loaded");
+
+    param_name = "robot_description_semantic";
+    std::string robot_description_semantic = parameters_client->get_parameter<std::string>(param_name);
+
+    rclcpp::Parameter robot_description_semantic_param(param_name,robot_description_semantic);
+    this->declare_parameter(param_name, rclcpp::PARAMETER_STRING);
+    this->set_parameter(robot_description_semantic_param);
+
+    if(not this->has_parameter(param_name))
+      throw std::runtime_error("no robot description semantic");
+    else
+      RCLCPP_WARN(this->get_logger(),"robot description semantic loaded");
+
     this->action_server_ = rclcpp_action::create_server<trajectory_loader::action::MoveToAction>(
           this,"move_to",
           std::bind(&MoveToServer::handle_goal, this, std::placeholders::_1, std::placeholders::_2),
           std::bind(&MoveToServer::handle_cancel, this, std::placeholders::_1),
           std::bind(&MoveToServer::handle_accepted, this, std::placeholders::_1));
   }
-
-  //  ~MoveToServer()
-  //  {
-  //    executor_thread_.join();
-  //  }
-
 private:
   bool fjt_error_;
   bool fjt_finished_;
   bool ik_response_received_;
-
-  rclcpp::Node::SharedPtr move_group_node_;
-  std::shared_ptr<std::thread> executor_thread_;
   ik_solver_msgs::srv::GetIk::Response::SharedPtr ik_response_;
-  //  rclcpp::executors::MultiThreadedExecutor::SharedPtr executor_;
   rclcpp::Publisher<std_msgs::msg::Int16>::SharedPtr scaling_pub_;
   rclcpp::Publisher<moveit_msgs::msg::DisplayTrajectory>::SharedPtr display_trj_pub_;
   rclcpp_action::Server<trajectory_loader::action::MoveToAction>::SharedPtr action_server_;
@@ -244,16 +274,9 @@ private:
       return;
     }
 
-    //    executor_thread_ = std::make_shared<std::thread>([&]{
-    //      auto executor = rclcpp::executors::MultiThreadedExecutor(rclcpp::ExecutorOptions(),2,true);
-    //      executor.add_node(move_group_node_);
-    //      executor.spin();
-    //      RCLCPP_WARN(this->get_logger(),"Killing internal node's executor thread");
-    //    });
-
     bool success;
     moveit::planning_interface::MoveGroupInterface::Plan plan;
-    moveit::planning_interface::MoveGroupInterface move_group(move_group_node_,goal->group_name);
+    moveit::planning_interface::MoveGroupInterface move_group(this->shared_from_this(),goal->group_name);
 
     if(this->goal_handle_->is_canceling())
     {
@@ -510,9 +533,6 @@ private:
     this->action_client_ = nullptr;
     this->fjt_error_ = false;
     this->fjt_finished_ = false;
-
-    if(this->executor_thread_ && this->executor_thread_->joinable())
-      this->executor_thread_->join();
   }
 };
 
@@ -522,55 +542,8 @@ int main(int argc, char ** argv)
 
   rclcpp::NodeOptions node_options;
   node_options.automatically_declare_parameters_from_overrides(true);
-  auto internal_node = std::make_shared<rclcpp::Node>("__move_to_internal",node_options);
+  auto node = std::make_shared<MoveToServer>(node_options);
 
-  // Get robot_description
-  rclcpp::SyncParametersClient::SharedPtr parameters_client = std::make_shared<rclcpp::SyncParametersClient>(internal_node, std::string("/move_group"));
-
-  while (!parameters_client->wait_for_service(1s))
-  {
-    if (!rclcpp::ok())
-    {
-      RCLCPP_ERROR(internal_node->get_logger(), "Interrupted while waiting for the service. Exiting.");
-      rclcpp::shutdown();
-    }
-    RCLCPP_INFO(internal_node->get_logger(), "service not available, waiting again...");
-  }
-
-  if(not parameters_client->has_parameter("robot_description"))
-    RCLCPP_ERROR(internal_node->get_logger(), "Cannot find robot_description parameter");
-  if(not parameters_client->has_parameter("robot_description_semantic"))
-    RCLCPP_ERROR(internal_node->get_logger(), "Cannot find robot_description_semantic parameter");
-
-  std::string param_name = "robot_description";
-  std::string robot_description = parameters_client->get_parameter<std::string>(param_name);
-
-  rclcpp::Parameter robot_description_param(param_name,robot_description);
-  internal_node->declare_parameter(param_name, rclcpp::PARAMETER_STRING);
-  internal_node->set_parameter(robot_description_param);
-
-  if(not internal_node->has_parameter(param_name))
-    throw std::runtime_error("no robot description");
-  else
-    RCLCPP_WARN(internal_node->get_logger(),"robot description loaded");
-
-  param_name = "robot_description_semantic";
-  std::string robot_description_semantic = parameters_client->get_parameter<std::string>(param_name);
-
-  rclcpp::Parameter robot_description_semantic_param(param_name,robot_description_semantic);
-  internal_node->declare_parameter(param_name, rclcpp::PARAMETER_STRING);
-  internal_node->set_parameter(robot_description_semantic_param);
-
-  if(not internal_node->has_parameter(param_name))
-    throw std::runtime_error("no robot description semantic");
-  else
-    RCLCPP_WARN(internal_node->get_logger(),"robot description semantic loaded");
-
-  rclcpp::executors::SingleThreadedExecutor executor;
-  executor.add_node(internal_node);
-  std::thread([&executor]() { executor.spin(); }).detach();
-
-  auto node = std::make_shared<MoveToServer>(internal_node, node_options);
   rclcpp::spin(node);
   rclcpp::shutdown();
 
