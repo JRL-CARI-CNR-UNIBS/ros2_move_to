@@ -158,7 +158,7 @@ private:
     rclcpp::Rate rate(100);
     while(not this->ik_response_received_)
     {
-      RCLCPP_INFO(this->get_logger(), "Waiting for /get_ik server response");
+      RCLCPP_DEBUG_THROTTLE(this->get_logger(),*this->get_clock(),1000,"Waiting for /get_ik server response");
       rate.sleep();
     }
 
