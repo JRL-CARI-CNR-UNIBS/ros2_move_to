@@ -17,7 +17,7 @@ This action allows you to load and execute a pre-computed trajectory. The action
 - **`bool recompute_time_law`**: If true, the time-law is re-computed based on the list of joint configurations. This also occurs if the trajectory parameter contains only the list of joint configurations.
 - **`bool simulation`**: If true, the trajectory is only displayed.
 
-- #### Note
+#### Note
 If the robot's current configuration does not match the first point of the trajectory, a trajectory is computed with MoveIt to move the robot to the start point.
 
 ### 2. `MoveToAction`
