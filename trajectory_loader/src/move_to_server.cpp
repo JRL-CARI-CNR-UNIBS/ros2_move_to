@@ -264,6 +264,11 @@ private:
     summary = summary+" - scaling: "+std::to_string(goal->scaling)+"\n";
     summary = summary+" - simulation: "+(goal->simulation? "true": "false")+"\n";
     summary = summary+" - pose:\n"+geometry_msgs::msg::to_yaml(goal->pose)+"\n";
+    summary = summary+" - pipeline_id:\n"+std::to_string(goal->pipeline_id)+"\n";
+    summary = summary+" - planner_id:\n"+std::to_string(goal->planner_id)+"\n";
+    summary = summary+" - acceleration_scaling_factor:\n"+std::to_string(goal->acceleration_scaling_factor)+"\n";
+    summary = summary+" - velocity_scaling_factor:\n"+std::to_string(goal->velocity_scaling_factor)+"\n";
+
 
     RCLCPP_WARN_STREAM(get_logger(),summary);
 
@@ -429,6 +434,12 @@ private:
 
     move_group.setJointValueTarget(goal_map);
 
+    // set pipeline and planner
+    move_group.setPlanningPipelineId(goal->pipeline_id);
+    move_group.setPlannerId(goal->planner_id);
+    move_group.setMaxAccelerationScalingFactor(goal->acceleration_scaling_factor);
+    move_group.setMaxVelocityScalingFactor(goal->velocity_scaling_factor);
+
     robot_trajectory::RobotTrajectory trajectory(move_group.getRobotModel(), goal->group_name);
     success = (move_group.plan(plan) == moveit::core::MoveItErrorCode::SUCCESS);
     if(not success)
@@ -439,10 +450,12 @@ private:
       this->clear();
       return;
     }
+    // plan.trajectory_.joint_trajectory (path without motion law)
 
     moveit_msgs::msg::RobotTrajectory trj;
     trajectory.setRobotTrajectoryMsg(robot_current_state, plan.trajectory_.joint_trajectory);
 
+    // TIME PARAMETRIZATION (LEGGE DI MOTO)
     trajectory_processing::TimeOptimalTrajectoryGeneration trj_processing;
     trj_processing.computeTimeStamps(trajectory);
     trajectory.getRobotTrajectoryMsg(trj);
@@ -614,6 +627,8 @@ int main(int argc, char ** argv)
   rclcpp::executors::MultiThreadedExecutor executor;
   executor.add_node(node);
   executor.spin();
+
+
 
 //  auto spinner = new std::thread([&executor]() { executor.spin();});
 //  spinner->join();
