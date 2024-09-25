@@ -9,22 +9,13 @@ from launch_ros.substitutions import FindPackageShare
 from moveit_configs_utils import MoveItConfigsBuilder
 
 def generate_launch_description():
-  return LaunchDescription([
+  
+  return LaunchDescription([    
     Node(
       package="trajectory_loader",
-      executable="move_to_server",
+      executable="test_move_group",
       output="screen",
-      namespace="kuka_trajectory_loader",
-      ros_arguments=["--log-level", "info"],
-      remappings=[("/kuka_trajectory_loader/joint_states", "/joint_states")]
-    ),
-
-    Node(
-      package="trajectory_loader",
-      executable="move_to_server",
-      output="screen",
-      namespace="comau_trajectory_loader",
-      ros_arguments=["--log-level", "info"],
-      remappings=[("/comau_trajectory_loader/joint_states", "/joint_states")]
+      namespace="",
+      ros_arguments=["--log-level", "debug"]
     )
 ])

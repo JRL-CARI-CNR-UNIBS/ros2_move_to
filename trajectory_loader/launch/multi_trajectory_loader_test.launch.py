@@ -29,7 +29,8 @@ def generate_launch_description():
       executable="trajectory_loader_test",
       output="screen",
       namespace="kuka_trajectory_loader",
-      ros_arguments=["--log-level", "info"]
+      ros_arguments=["--log-level", "info"],
+      remappings=[("/kuka_trajectory_loader/joint_states", "/joint_states")]
     ),
     
     Node(
@@ -37,6 +38,7 @@ def generate_launch_description():
       executable="trajectory_loader_test",
       output="screen",
       namespace="comau_trajectory_loader",
-      ros_arguments=["--log-level", "info"]
+      ros_arguments=["--log-level", "info"],
+      remappings=[("/comau_trajectory_loader/joint_states", "/joint_states")]
     )
 ])

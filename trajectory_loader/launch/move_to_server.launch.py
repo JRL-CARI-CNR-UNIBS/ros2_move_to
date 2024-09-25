@@ -15,7 +15,6 @@ def generate_launch_description():
       executable="move_to_server",
       output="screen",
       namespace="",
-      ros_arguments=["--log-level", "info"],
-      parameters=[{"use_sim_time": True}]
+      ros_arguments=["--log-level", "info"]
     )
 ])

@@ -35,4 +35,16 @@ This action allows the robot to move to a specified pose. The action server requ
 ## Examples
 Check the `launch` folder for examples on how to launch the action servers.
 
+⚠️ **Please note** that if you launch these nodes using a namespace, you must remap the  `/joint_states` topic as follows:
+```py
+Node(
+    package="trajectory_loader",
+    executable="move_to_server",
+    output="screen",
+    namespace="my_namespace",
+    ros_arguments=["--log-level", "info"],
+    remappings=[("/my_namespace/joint_states", "/joint_states")] #remapping
+    )
+```
+
 For more details on the actions and parameters, refer to the source code and the included examples.
