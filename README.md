@@ -4,3 +4,6 @@
 
 - [Trajectory Loader](https://github.com/JRL-CARI-CNR-UNIBS/ros2_move_to/blob/master/trajectory_loader/README.md)
 - [Trajectory Loader Helper](https://github.com/JRL-CARI-CNR-UNIBS/ros2_move_to/blob/master/trajectory_loader_helper/README.md)
+
+## Install
+To use `ros2_move_to` you need [`cnr_param`](https://github.com/CNR-STIIMA-IRAS/cnr_param). Follow [these instructions](https://github.com/JRL-CARI-CNR-UNIBS/cnr_common) to install it.
