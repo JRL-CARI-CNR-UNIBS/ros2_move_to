@@ -6,4 +6,20 @@
 - [Trajectory Loader Helper](https://github.com/JRL-CARI-CNR-UNIBS/ros2_move_to/blob/master/trajectory_loader_helper/README.md)
 
 ## Install
-To use `ros2_move_to` you need [`cnr_param`](https://github.com/CNR-STIIMA-IRAS/cnr_param). Follow [these instructions](https://github.com/JRL-CARI-CNR-UNIBS/cnr_common) to install it.
+Download `ros2_move_to`
+```bash
+cd your/ws/path/src
+git clone https://github.com/JRL-CARI-CNR-UNIBS/ros2_move_to
+```
+ 
+ Download dependencies using vcstool
+ ```bash
+ sudo apt-get install python3-vcstool #or sudo pip install vcstool
+ cd ..
+ vcs import < src/ros2_move_to/deps.repos
+ ```
+
+ Build the ws
+ ```bash
+ colcon build --symlink-install
+ ```
