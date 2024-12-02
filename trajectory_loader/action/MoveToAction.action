@@ -6,6 +6,10 @@ int16 scaling
 string speed_scaling_topic
 geometry_msgs/PoseStamped pose
 bool simulation
+string pipeline_id
+string planner_id
+float64 acceleration_scaling_factor
+float64 velocity_scaling_factor
 ---
 #Result
 bool ok
