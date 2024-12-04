@@ -175,11 +175,38 @@ private:
     return true;
   }
 
-  bool chooseIk(const Ik& ik, const std::vector<double>& current_configuration, std::vector<double>& best_ik)
+  bool chooseIk(const Ik& ik, const std::vector<double>& current_configuration, const std::vector<double>& joints_weights, std::vector<double>& best_ik)
   {
     Eigen::VectorXd best_conf;
     Eigen::VectorXd current_conf = Eigen::VectorXd::Map(
           current_configuration.data(), static_cast<Eigen::Index>(current_configuration.size()));
+    
+    Eigen::VectorXd weights;
+
+    if (joints_weights.size() == current_conf.size())
+    {
+      weights = Eigen::VectorXd::Map(joints_weights.data(), joints_weights.size());
+    } 
+    else if (joints_weights.size() > current_conf.size())
+    {
+      weights = Eigen::VectorXd::Map(joints_weights.data(), current_conf.size());
+    }
+    else
+    {
+      weights = Eigen::VectorXd::Map(joints_weights.data(), joints_weights.size());
+      weights.conservativeResize(current_conf.size());  
+      weights.tail(current_conf.size() - joints_weights.size()).setOnes(); 
+    }
+
+    if (joints_weights.size() != current_conf.size())
+    {
+        RCLCPP_WARN_STREAM(this->get_logger(),
+                          "Warning: The size of the joints_weights vector (" << joints_weights.size() << ") "
+                          << "is different from the size of the current_configuration vector (DOF: "
+                          << current_conf.size() << "). "
+                          << "If joints_weights' size is less than DOF, missing weights are set to 1.0. If it is greater, only the first "
+                          <<current_conf.size()<<" weights will be used. "<< "Weights after adjustment: " << weights.transpose());
+    }
 
     double distance;
     double min_distance = std::numeric_limits<double>::infinity();
@@ -190,7 +217,7 @@ private:
             ik.configurations[i].configuration.data(),
             static_cast<Eigen::Index>(ik.configurations[i].configuration.size()));
 
-      distance = (conf-current_conf).norm();
+      distance = ((conf-current_conf).cwiseProduct(weights)).norm();
       if(distance<min_distance)
       {
         best_conf = conf;
@@ -253,12 +280,12 @@ private:
     summary = summary+" - speed_scaling_topic: "+goal->speed_scaling_topic+"\n";
     summary = summary+" - scaling: "+std::to_string(goal->scaling)+"\n";
     summary = summary+" - simulation: "+(goal->simulation? "true": "false")+"\n";
-    summary = summary+" - pose:\n"+geometry_msgs::msg::to_yaml(goal->pose)+"\n";
-    summary = summary+" - pipeline_id:\n"+std::to_string(goal->pipeline_id)+"\n";
-    summary = summary+" - planner_id:\n"+std::to_string(goal->planner_id)+"\n";
-    summary = summary+" - acceleration_scaling_factor:\n"+std::to_string(goal->acceleration_scaling_factor)+"\n";
-    summary = summary+" - velocity_scaling_factor:\n"+std::to_string(goal->velocity_scaling_factor)+"\n";
-
+    summary = summary+" - pipeline_id: "+std::to_string(goal->pipeline_id)+"\n";
+    summary = summary+" - planner_id: "+std::to_string(goal->planner_id)+"\n";
+    summary = summary+" - acceleration_scaling_factor: "+std::to_string(goal->acceleration_scaling_factor)+"\n";
+    summary = summary+" - velocity_scaling_factor: "+std::to_string(goal->velocity_scaling_factor)+"\n";
+    summary = summary+" - joints weights: [ "; for(const auto s:goal->joints_weights) summary = summary+std::to_string(s)+" "; summary = summary+"]\n";
+    summary = summary+" - pose:\n"+geometry_msgs::msg::to_yaml(goal->pose);
 
     RCLCPP_WARN_STREAM(this->get_logger(),summary);
 
@@ -350,7 +377,7 @@ private:
     RCLCPP_INFO_STREAM(this->get_logger(),txt_current_state);
 
     std::vector<double> best_ik;
-    this->chooseIk(ik,current_configuration,best_ik);
+    this->chooseIk(ik,current_configuration,goal->joints_weights,best_ik);
 
     std::string best_ik_str = "";
     for(const double& d : best_ik)
@@ -396,12 +423,12 @@ private:
     moveit_msgs::msg::RobotTrajectory trj;
     trajectory.setRobotTrajectoryMsg(*robot_current_state, plan.trajectory_.joint_trajectory);
 
-    // TIME PARAMETRIZATION (LEGGE DI MOTO)
+    // TIME PARAMETRIZATION
     trajectory_processing::TimeOptimalTrajectoryGeneration trj_processing;
     trj_processing.computeTimeStamps(trajectory);
     trajectory.getRobotTrajectoryMsg(trj);
 
-    RCLCPP_INFO_STREAM(this->get_logger(),"Trajectory "<<trajectory);
+    RCLCPP_DEBUG_STREAM(this->get_logger(),trajectory);
 
     if(this->goal_handle_->is_canceling())
     {
@@ -423,7 +450,7 @@ private:
       rclcpp::Rate rate(100);
       while(not this->fjt_finished_)
       {
-        RCLCPP_INFO(this->get_logger(),"Approach: Waiting end of fjt action");
+        RCLCPP_INFO_THROTTLE(this->get_logger(),*this->get_clock(),1000,"Approach: Waiting end of fjt action");
         rate.sleep();
       }
 

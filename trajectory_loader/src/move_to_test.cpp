@@ -150,6 +150,61 @@ int main(int argc, char ** argv)
     return 1;
   }
 
+  std::string pipeline_id;
+  if(cnr::param::has(ns+"pipeline_id",w))
+    cnr::param::get(ns+"pipeline_id",simulation,w);
+  else
+  {
+    RCLCPP_ERROR(node->get_logger(),"pipeline_id not defined");
+    RCLCPP_ERROR_STREAM(node->get_logger(),w);
+
+    return 1;
+  }
+
+  std::string planner_id;
+  if(cnr::param::has(ns+"planner_id",w))
+    cnr::param::get(ns+"planner_id",simulation,w);
+  else
+  {
+    RCLCPP_ERROR(node->get_logger(),"planner_id not defined");
+    RCLCPP_ERROR_STREAM(node->get_logger(),w);
+
+    return 1;
+  }
+
+  double velocity_scaling_factor;
+  if(cnr::param::has(ns+"velocity_scaling_factor",w))
+    cnr::param::get(ns+"velocity_scaling_factor",simulation,w);
+  else
+  {
+    RCLCPP_ERROR(node->get_logger(),"velocity_scaling_factor not defined");
+    RCLCPP_ERROR_STREAM(node->get_logger(),w);
+
+    return 1;
+  }
+
+  double acceleration_scaling_factor;
+  if(cnr::param::has(ns+"acceleration_scaling_factor",w))
+    cnr::param::get(ns+"acceleration_scaling_factor",simulation,w);
+  else
+  {
+    RCLCPP_ERROR(node->get_logger(),"acceleration_scaling_factor not defined");
+    RCLCPP_ERROR_STREAM(node->get_logger(),w);
+
+    return 1;
+  }
+
+  std::vector<double> joints_weights;
+  if(cnr::param::has(ns+"joints_weights",w))
+    cnr::param::get(ns+"joints_weights",simulation,w);
+  else
+  {
+    RCLCPP_ERROR(node->get_logger(),"joints_weights not defined");
+    RCLCPP_ERROR_STREAM(node->get_logger(),w);
+
+    return 1;
+  }
+
   double z_shift;
   if(cnr::param::has(ns+"z_shift",w))
     cnr::param::get(ns+"z_shift",z_shift,w);
@@ -179,7 +234,6 @@ int main(int argc, char ** argv)
     iter++;
   }
 
-
   try {
     transform = tf_buffer->lookupTransform(
           tf, base_frame,
@@ -205,6 +259,11 @@ int main(int argc, char ** argv)
   goal.fjt_action_name = fjt_action_name;
   goal.ik_service_name = ik_service_name;
   goal.speed_scaling_topic = speed_scaling_topic;
+  goal.pipeline_id = pipeline_id;
+  goal.planner_id = planner_id;
+  goal.acceleration_scaling_factor = acceleration_scaling_factor;
+  goal.velocity_scaling_factor = velocity_scaling_factor;
+  goal.joints_weights = joints_weights;
 
   RCLCPP_INFO(node->get_logger(),"sending goal");
 

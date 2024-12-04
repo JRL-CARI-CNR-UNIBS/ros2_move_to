@@ -6,4 +6,9 @@ move_to_test:
   speed_scaling_topic: "/speed_ovr"
   ik_service_name: "/comau_ik_solver/get_ik"
   simulation: false
+  pipeline_id: "ompl"
+  planner_id: "BiTRRT"
+  velocity_scaling_factor: 1
+  acceleration_scaling_factor: 1
+  joints_weights: [1,1,1,1,1,1]
   z_shift: 0.3
