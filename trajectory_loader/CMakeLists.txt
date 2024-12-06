@@ -30,6 +30,7 @@ find_package(control_msgs REQUIRED)
 rosidl_generate_interfaces(${PROJECT_NAME}
   "action/TrajectoryLoaderAction.action"
   "action/MoveToAction.action"
+  "action/MoveToConfAction.action"
   DEPENDENCIES geometry_msgs
 
 )
@@ -67,6 +68,23 @@ ament_target_dependencies(move_to_server
 )
 rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
 target_link_libraries(move_to_server "${cpp_typesupport_target}" cnr_param::cnr_param)
+
+add_executable(move_to_conf_server src/move_to_conf_server.cpp)
+ament_target_dependencies(move_to_conf_server
+  rclcpp
+  rclcpp_components
+  rosidl_default_generators
+  rclcpp_action
+  std_msgs
+  trajectory_msgs
+  moveit_msgs
+  sensor_msgs
+  moveit_ros_planning_interface
+  geometry_msgs
+  control_msgs
+)
+rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
+target_link_libraries(move_to_conf_server "${cpp_typesupport_target}" cnr_param::cnr_param)
 
 add_executable(trajectory_loader_test src/trajectory_loader_test.cpp)
 ament_target_dependencies(trajectory_loader_test
@@ -121,6 +139,7 @@ target_link_libraries(test_move_group "${cpp_typesupport_target}" cnr_param::cnr
 install(TARGETS
   trajectory_loader_server
   move_to_server
+  move_to_conf_server
   trajectory_loader_test
   move_to_test
   test_move_group

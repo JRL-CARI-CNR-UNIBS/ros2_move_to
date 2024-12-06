@@ -1,6 +1,6 @@
 # Trajectory Loader
 
-**trajectory_loader** is a ROS2 package that provides two main actions for handling robot trajectories:
+**trajectory_loader** is a ROS2 package that provides three main actions for handling robot trajectories:
 
 ## Actions
 
@@ -36,6 +36,24 @@ This action allows the robot to move to a specified pose. The action server requ
 - **`float64 acceleration_scaling_factor`**: MoveIt acceleration scaling factor
 - **`float64 velocity_scaling_factor`**: MoveIt velocity scaling factor
 - **`joints_weights`**: Among all the IK computed, the closest one to the current robot's configuration is chosen. `joints_weights` allows to weight differently each joint on this distance computation.
+
+`acceleration_scaling_factor` and `velocity_scaling_factor` differs from `scaling` because they allows to compute a slower trajectory, while `scaling` slows down a fast trajectory during motion. Furthermore, `scaling` requires a *ad hoc* controller which listens to `speed_scaling_topic` and slows down the trajectory.
+
+### 3. `MoveToConfAction`
+This action allows the robot to move to a configuration. The action server computes a trajectory from the current robot configuration to the target one using MoveIt, and sends it to the `FollowJointTrajectory` action server.
+
+#### Required Fields
+- **`string[] joints_names`**: Name of the joints for which the target configuration will be specified.
+- **`float64[] target_joints_configurations`**: The target configuration for each joint specified in `joints_names`.
+- **`string group_name`**: Name of the robotic group that will execute the trajectories.
+- **`string fjt_action_name`**: Name of the follow joint trajectory action.
+- **`int16 scaling`**: Speed scaling factor for each trajectory execution (0 to 100). This scaling factor is read by the fjt controller to slowdown thr trajectory execution.
+- **`string speed_scaling_topic`**: Topic name where the speed scaling is published. The fjt action server listens to this topic to scale the trajectory.
+- **`bool simulation`**: If true, the trajectory is only displayed.
+- **`string pipeline_id`**: E.g., OMPL.
+- **`string planner_id`**: E.g., RRT.
+- **`float64 acceleration_scaling_factor`**: MoveIt acceleration scaling factor
+- **`float64 velocity_scaling_factor`**: MoveIt velocity scaling factor
 
 `acceleration_scaling_factor` and `velocity_scaling_factor` differs from `scaling` because they allows to compute a slower trajectory, while `scaling` slows down a fast trajectory during motion. Furthermore, `scaling` requires a *ad hoc* controller which listens to `speed_scaling_topic` and slows down the trajectory.
 
