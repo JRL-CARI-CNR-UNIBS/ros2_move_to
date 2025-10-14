@@ -509,8 +509,15 @@ private:
         trajectory.setRobotTrajectoryMsg(*robot_current_state, plan.trajectory_.joint_trajectory);
 
         // TIME PARAMETRIZATION
+
+        RCLCPP_WARN_STREAM(this->get_logger(),
+          "velocity_scaling_factor = " << goal->velocity_scaling_factor <<
+          ", acceleration_scaling_factor = " << goal->acceleration_scaling_factor);
+
         trajectory_processing::TimeOptimalTrajectoryGeneration trj_processing;
-        trj_processing.computeTimeStamps(trajectory);
+        trj_processing.computeTimeStamps(trajectory,
+                                         goal->velocity_scaling_factor,
+                                         goal->acceleration_scaling_factor);
         trajectory.getRobotTrajectoryMsg(trj);
 
         RCLCPP_DEBUG_STREAM(this->get_logger(),trajectory);

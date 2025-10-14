@@ -229,7 +229,9 @@ private:
 
         // TIME PARAMETRIZATION
         trajectory_processing::TimeOptimalTrajectoryGeneration trj_processing;
-        trj_processing.computeTimeStamps(trajectory);
+        trj_processing.computeTimeStamps(trajectory,
+                                         goal->velocity_scaling_factor,
+                                         goal->acceleration_scaling_factor);
         trajectory.getRobotTrajectoryMsg(trj);
 
         RCLCPP_DEBUG_STREAM(this->get_logger(),trajectory);
